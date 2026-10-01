@@ -118,6 +118,12 @@ pipeline backend hangs there. Override with
 is detected but breaks at runtime (stale driver / OOM), set
 `MINERU_DEVICE_MODE=cpu` to force CPU.
 
+Only the pages that need MinerU are sent to it: PyMuPDF classifies every
+page first, and pages with formulas, ruled tables, scans or a garbled
+text layer go to MinerU while the rest keep PyMuPDF's text. On typical
+lecture slides this cuts MinerU time several-fold. Set
+`MINERU_PAGE_ROUTING=0` to send every page as before.
+
 > **Network requirement.** The frontend loads React / KaTeX / d3-force
 > / CodeMirror / IBM Plex fonts from public CDNs (jsdelivr, unpkg,
 > esm.sh, Google Fonts) — first page-load needs internet. Fully

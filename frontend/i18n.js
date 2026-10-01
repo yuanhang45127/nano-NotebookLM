@@ -98,7 +98,7 @@
     },
     "upload.engine_label":     { zh: "PDF 提取引擎",       en: "PDF extraction engine" },
     "upload.engine_default":   { zh: "默认 · 毫秒级 · 不解析公式", en: "Default · ms · no formula parsing" },
-    "upload.engine_mineru":    { zh: "高质量 · ~10s/页 · LaTeX + 表格", en: "High quality · ~10s/page · LaTeX + tables" },
+    "upload.engine_mineru":    { zh: "高质量 · 公式/表格/扫描页走 OCR", en: "High quality · OCR for formula / table / scanned pages" },
     "upload.invalid_id_title": { zh: "课程 id 不规范: {cid}", en: "Invalid course id: {cid}" },
     "upload.refresh_lost":     {
       zh: "原始文件已不在内存中（页面已刷新）。请重新选择文件并上传。",

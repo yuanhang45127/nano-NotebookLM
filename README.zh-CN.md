@@ -112,6 +112,11 @@ GPU：Linux 下 MinerU 会自动检测 CUDA（1–2 秒/页）；Apple Silicon �
 **逃生口**：如果 CUDA 被检测出但运行时坏（驱动旧 / 显存满），显式设
 `MINERU_DEVICE_MODE=cpu` 让 MinerU 退回 CPU。
 
+MinerU 只处理真正需要它的页面：PyMuPDF 先逐页判断，含公式、表格、扫描图
+或文字层乱码的页送进 MinerU，其余页直接用 PyMuPDF 的文字。普通课件 slides
+上 MinerU 耗时能降到原来的几分之一。设 `MINERU_PAGE_ROUTING=0` 恢复全部
+页面走 MinerU。
+
 > **联网要求。** 前端走 CDN 加载 React / KaTeX / d3-force / CodeMirror /
 > IBM Plex 字体（jsdelivr、unpkg、esm.sh、Google Fonts）—— 首次加载页面
 > 需要联网。完全离线部署需要把这些资产本地 vendor 一份。

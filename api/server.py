@@ -3363,6 +3363,8 @@ _EXTRACT_SECS_PER_PAGE = {
 _PPTX_RENDER_SECS_PER_SLIDE = 0.5
 _PPTX_BASE_SECS = 5.0  # LibreOffice startup
 _MINERU_COLD_START_SECS = 40.0  # one-time cost when server isn't warm
+# PyMuPDF text + classification for pages kept off MinerU (page_router).
+_PAGE_ROUTING_SECS_PER_PAGE = 0.1
 
 
 def _scan_file_pages(upload_dir: Path) -> tuple[int, dict[Path, int]]:
@@ -3443,11 +3445,21 @@ def _estimate_upload_duration_seconds(
             pass
     per_page = _EXTRACT_SECS_PER_PAGE.get(effective_engine, _EXTRACT_SECS_PER_PAGE["pymupdf"])
 
+    mineru_needed = False
     for f, pages in per_file_pages.items():
         suffix = f.suffix.lower()
         size = max(1, f.stat().st_size)
         if suffix == ".pdf":
-            extracting += pages * per_page
+            routed = None
+            if effective_engine == "mineru":
+                from nano_notebooklm.ingest.page_router import count_mineru_pages
+                routed = count_mineru_pages(f)
+            if routed is None or routed > 0:
+                mineru_needed = True
+            if routed is None:
+                extracting += pages * per_page
+            else:
+                extracting += routed * per_page + pages * _PAGE_ROUTING_SECS_PER_PAGE
             chunking += pages * 0.01  # segmentation is ~10ms/page
             estimated_chunks += pages * 4
         elif suffix in (".pptx", ".ppt"):
@@ -3460,6 +3472,7 @@ def _estimate_upload_duration_seconds(
             # ~130s). Add the same per-page cost as a real PDF.
             if effective_engine == "mineru":
                 extracting += pages * per_page
+                mineru_needed = True
             chunking += pages * 0.02
             estimated_chunks += pages * 2
         elif suffix == ".docx":
@@ -3477,7 +3490,7 @@ def _estimate_upload_duration_seconds(
     # SECOND upload the model is fully warm, so a full 40s surcharge
     # over-estimates by 25-35s. Pay the full cost only when warmth is
     # unknown/false; pay a small first-call latency floor when warm.
-    if effective_engine == "mineru":
+    if effective_engine == "mineru" and mineru_needed:
         if mineru_warm:
             extracting += 8.0   # first-request latency on a warm server
         else:

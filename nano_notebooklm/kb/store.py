@@ -387,18 +387,26 @@ class KBStore:
                 # 100. The chunking bar (separate phase) continues
                 # advancing during any non-PDF extract tail so the user
                 # never sees both bars idle simultaneously.
+                # Only pages PyMuPDF can't read well (formulas, tables,
+                # scans) go to MinerU; see ingest/page_router.py.
+                from nano_notebooklm.ingest.page_router import MineruRouting
+                routing = MineruRouting(batch_inputs)
+                fast_done = routing.resolved_without_mineru
+
                 def _on_mineru_file_done(done: int, total: int) -> None:
                     if on_extract_progress is None:
                         return
                     try:
-                        on_extract_progress(done, max(total_files, 1))
+                        on_extract_progress(fast_done + done, max(total_files, 1))
                     except Exception:
                         logger.warning("on_extract_progress raised inside mineru batch tick", exc_info=True)
+                raw_results: dict[str, list[PageInfo]] = {}
                 try:
-                    mineru_batch_results = extract_pdfs_mineru_batch(
-                        [str(p) for p in batch_inputs], lang=lang,
-                        on_file_done=_on_mineru_file_done,
-                    )
+                    if routing.send:
+                        raw_results = extract_pdfs_mineru_batch(
+                            [str(p) for p in routing.send], lang=lang,
+                            on_file_done=_on_mineru_file_done,
+                        )
                 except (MinerUExtractionError, FileNotFoundError) as exc:
                     # Batch failed wholesale → fall back to per-file
                     # extraction below (which may itself crash per-file,
@@ -407,6 +415,9 @@ class KBStore:
                         "mineru batch failed (%s); falling back to per-file extraction",
                         type(exc).__name__,
                     )
+                finally:
+                    mineru_batch_results = routing.merge(raw_results)
+                    routing.cleanup()
                 # Mineru batch is "all or nothing" — once it returns,
                 # extraction for every PDF in the batch is effectively
                 # done. Non-PDFs (other than pptx-via-sidecar) still
