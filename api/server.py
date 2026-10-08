@@ -5395,6 +5395,177 @@ async def serve_index():
 app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR), html=False), name="static")
 
 
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Scratch notes (从零生成知识笔记) — topic → outline → full note → key terms.
+# No course required: the frontend saves the finished note as a .md source
+# through the ordinary /api/upload/{course_id} pipeline, so every existing
+# surface (Reader / Notes / KG / Exam Prep / chat) works on it unchanged.
+# ═══════════════════════════════════════════════════════════════════════════
+
+class ScratchOutlineRequest(BaseModel):
+    topic: str = Field(..., min_length=1, max_length=200)
+    depth: str = Field("standard", pattern="^(intro|standard|deep)$")
+    audience: str = Field("", max_length=120)
+    user_lang: str | None = None
+    backend: str | None = None
+
+
+class ScratchNoteRequest(BaseModel):
+    topic: str = Field(..., min_length=1, max_length=200)
+    outline: str = Field(..., min_length=1, max_length=8000)
+    depth: str = Field("standard", pattern="^(intro|standard|deep)$")
+    audience: str = Field("", max_length=120)
+    user_lang: str | None = None
+    backend: str | None = None
+
+
+class ScratchTermsRequest(BaseModel):
+    note_text: str = Field(..., min_length=1, max_length=60000)
+    user_lang: str | None = None
+    backend: str | None = None
+
+
+_SCRATCH_DEPTH_HINTS = {
+    "intro": "零基础入门：少公式多类比，优先直觉理解",
+    "standard": "大学基础水平：概念完整，关键公式要给出并解释",
+    "deep": "深入原理：包含推导、易错点与工程实践细节",
+}
+
+
+def _scratch_lang(req_user_lang: str | None) -> str:
+    return "English" if (req_user_lang or "zh") == "en" else "中文"
+
+
+@app.post("/api/scratch/outline/stream", tags=["skills"],
+          summary="Stream a learning outline for any topic")
+async def scratch_outline_stream(req: ScratchOutlineRequest):
+    lang = _scratch_lang(req.user_lang)
+    depth_hint = _SCRATCH_DEPTH_HINTS.get(req.depth, _SCRATCH_DEPTH_HINTS["standard"])
+    prompt = (
+        f"主题：{req.topic}\n"
+        f"深度要求：{depth_hint}\n"
+        + (f"目标受众：{req.audience}\n" if req.audience.strip() else "")
+        + f"请用{lang}输出提纲。"
+    )
+    system = (
+        "You are an expert curriculum designer. Design a clear, logically ordered "
+        "learning outline. Return ONLY a markdown outline: one '## 章节标题' heading "
+        "per chapter (6-9 chapters), each optionally followed by 2-4 '- 子要点' bullets. "
+        "No preamble, no closing remarks."
+    )
+
+    async def events():
+        partial = ""
+        try:
+            async for delta in router.complete_stream(
+                prompt,
+                task_type="scratch_outline",
+                system=system,
+                temperature=0.6,
+                max_tokens=1600,
+                backend=req.backend,
+            ):
+                if isinstance(delta, TruncationSignal):
+                    continue
+                partial += delta
+                yield json.dumps({"type": "chunk", "chunk": delta, "partial": partial},
+                                 ensure_ascii=False) + "\n"
+            yield json.dumps({"type": "done", "content": partial}, ensure_ascii=False) + "\n"
+        except Exception:
+            logger.exception("scratch outline stream failed")
+            yield json.dumps({"type": "error", "error": "stream_failed",
+                              "partial": partial, "retryable": True},
+                             ensure_ascii=False) + "\n"
+
+    return StreamingResponse(events(), media_type="application/x-ndjson")
+
+
+@app.post("/api/scratch/note/stream", tags=["skills"],
+          summary="Stream a full study note from a topic + outline")
+async def scratch_note_stream(req: ScratchNoteRequest):
+    lang = _scratch_lang(req.user_lang)
+    depth_hint = _SCRATCH_DEPTH_HINTS.get(req.depth, _SCRATCH_DEPTH_HINTS["standard"])
+    prompt = (
+        f"学习主题：{req.topic}\n"
+        f"深度要求：{depth_hint}\n"
+        + (f"目标受众：{req.audience}\n" if req.audience.strip() else "")
+        + f"已确认的学习提纲：\n{req.outline}\n\n"
+        + f"请严格按提纲用{lang}撰写完整的学习笔记。"
+    )
+    system = (
+        "You are a patient, insightful teacher writing a self-contained study note. "
+        "Write in clean Markdown: keep the '## 章节' headings from the outline, use "
+        "short paragraphs, bullet lists, **bold** for key statements, and inline "
+        "examples. Math in $...$ / $$...$$. Define every term the first time it "
+        "appears. No meta commentary ('好的，以下是...'), start directly with the "
+        "first section."
+    )
+
+    async def events():
+        partial = ""
+        try:
+            async for delta in router.complete_stream(
+                prompt,
+                task_type="scratch_note",
+                system=system,
+                temperature=0.55,
+                max_tokens=8192,
+                backend=req.backend,
+            ):
+                if isinstance(delta, TruncationSignal):
+                    continue
+                partial += delta
+                yield json.dumps({"type": "chunk", "chunk": delta, "partial": partial},
+                                 ensure_ascii=False) + "\n"
+            yield json.dumps({"type": "done", "content": partial}, ensure_ascii=False) + "\n"
+        except Exception:
+            logger.exception("scratch note stream failed")
+            yield json.dumps({"type": "error", "error": "stream_failed",
+                              "partial": partial, "retryable": True},
+                             ensure_ascii=False) + "\n"
+
+    return StreamingResponse(events(), media_type="application/x-ndjson")
+
+
+@app.post("/api/scratch/terms", tags=["skills"],
+          summary="Extract the key terms from a finished note")
+async def scratch_terms(req: ScratchTermsRequest):
+    lang = _scratch_lang(req.user_lang)
+    prompt = (
+        "从下面的学习笔记中提取 6-15 个最重要的专有名词/术语（单个词或短语，"
+        "按重要程度排序，不要重复）:\n\n"
+        + req.note_text[:12000]
+        + ("\n\nReply with ONLY a JSON array of strings, e.g. [\"term1\", \"term2\"]"
+           if lang == "English" else
+           "\n\n只返回一个 JSON 字符串数组，例如 [\"术语1\", \"术语2\"]，不要任何解释。")
+    )
+    try:
+        resp = await router.complete(
+            prompt,
+            task_type="scratch_terms",
+            system="You extract key terms from study notes. Reply with ONLY a JSON array of strings.",
+            temperature=0.2,
+            max_tokens=600,
+            backend=req.backend,
+        )
+        text = resp.content or ""
+        m = re.search(r"\[[^\]]*\]", text, re.S)
+        if not m:
+            return {"terms": []}
+        raw = json.loads(m.group(0))
+        terms = []
+        for t in raw:
+            t = str(t).strip()
+            if t and t not in terms:
+                terms.append(t)
+        return {"terms": terms[:15]}
+    except Exception:
+        logger.exception("scratch terms extraction failed")
+        raise HTTPException(500, "terms_failed")
+
+
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8000)

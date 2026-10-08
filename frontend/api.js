@@ -148,6 +148,18 @@ const API = {
     return _stream("/notes/full-course/stream", body, onEvent);
   },
 
+  // ── Scratch notes (从零生成知识笔记) ──
+  // Event vocabulary matches /api/notes/full-course/stream:
+  //   {type:"chunk", chunk, partial} … {type:"done", content} | {type:"error", …}
+  scratchOutlineStream: (body, onEvent) => _stream("/scratch/outline/stream", body, onEvent),
+  scratchNoteStream: (body, onEvent) => _stream("/scratch/note/stream", body, onEvent),
+  scratchTerms: (body) => _request("/scratch/terms", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }),
+
+
   async generateQuiz(courseId, topic = null, numQuestions = 6, difficulty = "medium", { userLang = null } = {}) {
     const body = {
       course_id: courseId, topic, num_questions: numQuestions, difficulty,
