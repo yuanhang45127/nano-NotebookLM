@@ -362,7 +362,7 @@ function CoursePickerModal({ courses, defaultId, defaultEngine, onPick, onCancel
 }
 
 function App() {
-  const tweaks = useTweaks(TWEAK_DEFAULTS);
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
 
   // 2026-05-20: TweaksPanel is dev-only (gated on parent-window postMessage
   // from the design host) — never reaches end users. We hoist theme /
@@ -374,14 +374,14 @@ function App() {
   // palette — force any persisted "dark"/"auto" back to "paper" so old visitors
   // don't get stranded in a theme they can no longer switch out of.
   const [theme, setTheme] = useState(() => {
-    try {
-      const stored = window.localStorage.getItem("nano-nlm:v1:theme");
-      if (stored && stored !== "paper") {
-        window.localStorage.setItem("nano-nlm:v1:theme", "paper");
-      }
-    } catch (e) {}
-    return "paper";
+    try { return window.localStorage.getItem("nano-nlm:v1:theme") === "dark" ? "dark" : "paper"; }
+    catch (e) { return "paper"; }
   });
+  // v0.2 redesign: dark mode is a first-class toggle (topbar moon). Applied
+  // on <html> as data-theme so the CSS token block swaps wholesale.
+  React.useEffect(() => {
+    try { document.documentElement.dataset.theme = theme === "dark" ? "dark" : ""; } catch (e) {}
+  }, [theme]);
   const [density, setDensity] = useState(() => {
     try { return window.localStorage.getItem("nano-nlm:v1:density") || APPEARANCE_DEFAULTS.density; }
     catch (e) { return APPEARANCE_DEFAULTS.density; }
@@ -1818,41 +1818,23 @@ function App() {
       {/* ========= Top bar ========= */}
       <header className="topbar">
         <div className="brand">
-          <span className="mark">nano-NOTEBOOKLM</span>
-          <span className="ed mono">v0.1</span>
+          <span className="logo-tile">N</span>
+          <span className="mark">nano-NotebookLM</span>
+          <span className="ed mono">v0.2</span>
         </div>
-        <div className="crumbs mono">
-          <select
-            value={activeCourse || ""}
-            onChange={e => setActiveCourse(e.target.value || null)}
-            style={{ background: "transparent", border: "1px solid var(--paper-3)", borderRadius: 4, padding: "2px 8px", fontFamily: "var(--mono)", fontSize: 11, color: "var(--ink-2)", minWidth: 180 }}
-          >
-            <option value="">{t("topbar.all_courses", { n: totalChunks })}</option>
-            {visibleCourses.map(c => {
-              const flag = c.lang === "zh" ? "🇨🇳" : c.lang === "mixed" ? "🌐" : "🇺🇸";
-              return (
-                <option key={c.id} value={c.id}>
-                  {t("topbar.course_option", { flag, name: c.name, n: c.chunks || 0 })}
-                </option>
-              );
-            })}
-          </select>
-          <button
-            className="course-manage-btn mono"
-            title={t("topbar.manage_tooltip")}
-            onClick={() => setShowCourseManager(true)}
-            style={{
-              marginLeft: 6, background: "transparent",
-              border: "1px solid var(--paper-3)", borderRadius: 4,
-              padding: "2px 6px", fontFamily: "var(--mono)", fontSize: 11,
-              color: "var(--ink-2)", cursor: "pointer",
-            }}
-          >
-            {hiddenCourseIds.length
-              ? t("topbar.manage_courses_count", { n: hiddenCourseIds.length })
-              : t("topbar.manage_courses")}
-          </button>
-        </div>
+        <nav className="tabs" aria-label="Views">
+          {tabs.map(tb => (
+            <button
+              key={tb.id}
+              className={"tab" + (effectiveMode === tb.id ? " active" : "")}
+              onClick={() => !processing && setMode(tb.id)}
+              disabled={!!processing}
+            >
+              <span>{tb.label}</span>
+              {tb.num && tb.num !== "—" ? <span className="num mono">{tb.num}</span> : null}
+            </button>
+          ))}
+        </nav>
         <div className="spacer"></div>
         <div className="topbar-actions">
           <button
@@ -1988,6 +1970,11 @@ function App() {
               be trapped. Mid-flight uploads (no done, no errorStage)
               are NOT dismissed — those still need to finish. */}
           <button
+            className="icon-btn"
+            title={theme === "dark" ? "Light mode" : "Dark mode"}
+            onClick={() => commitTheme(theme === "dark" ? "paper" : "dark")}
+          >{theme === "dark" ? "☀" : "🌙"}</button>
+          <button
             className={"icon-btn" + (mode === "settings" ? " active" : "")}
             title="Settings (helper name, language, backend, cache)"
             onClick={() => {
@@ -2000,10 +1987,24 @@ function App() {
         </div>
       </header>
 
-      {/* ========= Library ========= */}
+      {/* ========= Library (context sidebar) ========= */}
       <Library
         sources={sources}
         collections={collections}
+        courses={visibleCourses}
+        activeCourse={activeCourse}
+        onCourseChange={(v) => setActiveCourse(v || null)}
+        totalChunks={totalChunks}
+        onManageCourses={() => setShowCourseManager(true)}
+        hiddenCount={hiddenCourseIds.length}
+        onOpenSettings={() => {
+          if (processing && (processing.done || processing.errorStage)) {
+            setProcessing(null);
+          }
+          setMode("settings");
+        }}
+        theme={theme}
+        onToggleTheme={() => commitTheme(theme === "dark" ? "paper" : "dark")}
         activeId={activeId}
         onPick={setActiveId}
         onToggle={(id) => setSources(ss => ss.map(s => s.id === id ? { ...s, checked: !s.checked } : s))}
@@ -2019,21 +2020,6 @@ function App() {
 
       {/* ========= Main ========= */}
       <main className="main">
-        <div className="tabs">
-          {tabs.map(t => (
-            <button
-              key={t.id}
-              className={"tab" + (effectiveMode === t.id ? " active" : "")}
-              onClick={() => !processing && setMode(t.id)}
-              disabled={!!processing}
-            >
-              <span>{t.label}</span>
-              <span className="num mono">{t.num}</span>
-            </button>
-          ))}
-          <div className="spacer"></div>
-          <button className="tool mono" style={{ fontSize: 11 }}>{t("topbar.sources_btn", { n: activeSources.length, total: sources.length })}</button>
-        </div>
         <div className="workspace">
           {/* 2026-05-13: the empty-courses CTA is `height/width:100%` and
               `.workspace` is `overflow:hidden`, so when visibleCourses is
@@ -2076,6 +2062,9 @@ function App() {
                   streaming={streaming}
                   activeCourse={activeCourse}
                   sources={sources}
+                  noteStyle={tweaks.noteStyle}
+                  onNoteStyle={(v) => setTweak("noteStyle", v)}
+                  onRegenerate={() => handleGenerateNotes({ force: true })}
                   onContentChange={(content) => {
                     setRealNotes(content);
                     saveCached(activeCourse, "notes", content);
@@ -2184,7 +2173,19 @@ function App() {
             />
           )}
           {effectiveMode === "history" && (
-            <SessionHistory days={sessionDays} />
+            <ManageView
+              t={t}
+              visibleCourses={visibleCourses}
+              totalChunks={totalChunks}
+              backendStatus={backendStatus}
+              sourcesTotal={sources.length}
+              activeSourcesCount={activeSources.length}
+              sessionDays={sessionDays}
+              onRescan={() => {
+                API.getCourses().then(data => setCourses(data.courses || [])).catch(() => {});
+                API.getStatus().then(setBackendStatus).catch(() => {});
+              }}
+            />
           )}
           {effectiveMode === "settings" && (
             <Settings
@@ -2252,7 +2253,8 @@ function App() {
           <span>{t("status.context")}</span><b>{t("status.context_value", { n: activeSources.length, total: sources.length })}</b>
         </div>
         <div className="spacer"></div>
-        <div className="item"><span>v0.1.0</span></div>
+        <div className="item sb-right"><span>{t("status.local_first")}</span></div>
+        <div className="item"><span>v0.2.0</span></div>
       </footer>
 
       {/* ========= Tweaks ========= */}
@@ -2848,7 +2850,7 @@ function HighlightDrawer({ highlights, onJump, onRemove, onClose }) {
   );
 }
 
-function RealNotesView({ content, streaming, activeCourse, sources, onContentChange, generationState, onRetry, onCitation }) {
+function RealNotesView({ content, streaming, activeCourse, sources, onContentChange, generationState, onRetry, onCitation, noteStyle, onNoteStyle, onRegenerate }) {
   const t = useT();
   const [draft, setDraft] = React.useState(content || "");
   const [editing, setEditing] = React.useState(false);
@@ -3476,9 +3478,22 @@ function RealNotesView({ content, streaming, activeCourse, sources, onContentCha
             ? t("notes.toolbar_locked_edit")
             : (effectiveCollapsed ? t("notes.toolbar_expand") : t("notes.toolbar_collapse"))}
           aria-expanded={!effectiveCollapsed}
-        >{effectiveCollapsed ? "▸ Tools" : "▾ Tools"}</button>
+          >{effectiveCollapsed ? "▸ Tools" : "▾ Tools"}</button>
         {!effectiveCollapsed && (
           <>
+            {/* v0.2 redesign: notes layout segmented control — 大纲 / Cornell /
+                卡片. Writes the same `noteStyle` tweak the dev TweaksPanel
+                used, so persistence semantics are unchanged. */}
+            <div className="seg" role="group" aria-label="Note layout">
+              {["outline", "cornell", "cards"].map(s => (
+                <button
+                  key={s}
+                  type="button"
+                  className={(noteStyle || "outline") === s ? "on" : ""}
+                  onClick={() => onNoteStyle && onNoteStyle(s)}
+                >{t(`notes.style_${s}`)}</button>
+              ))}
+            </div>
             {/* 2026-05-13: Edit button hidden by user request. The
                 CodeMirror editor + setEditing state machinery stays in
                 place — if you want it back, restore this button. The
@@ -3498,6 +3513,15 @@ function RealNotesView({ content, streaming, activeCourse, sources, onContentCha
             )}
             <button className="btn ghost" onClick={() => setShowToc(v => !v)} disabled={editing}>{showToc ? "Hide TOC" : "Show TOC"}</button>
             <button className="btn ghost" onClick={() => setShowDrawer(v => !v)} disabled={editing}>{showDrawer ? "Hide Highlights" : `Highlights · ${highlights.length}`}</button>
+            {onRegenerate && (
+              <button
+                className="btn primary"
+                onClick={onRegenerate}
+                disabled={streaming}
+                title={t("notes.regenerate")}
+                style={{ marginLeft: "auto" }}
+              >↻ {t("notes.regenerate")}</button>
+            )}
           </>
         )}
         {generationState?.retryable && <button className="btn primary" onClick={onRetry}>Retry</button>}
@@ -3541,7 +3565,7 @@ function RealNotesView({ content, streaming, activeCourse, sources, onContentCha
           )}
           <div
             ref={previewRef}
-            className="notes-preview"
+            className={"notes-preview" + (noteStyle === "cards" || noteStyle === "cornell" ? ` style-${noteStyle}` : "")}
             onMouseUp={captureSelection}
             onKeyUp={captureSelection}
             onClick={handlePreviewClick}
@@ -3755,6 +3779,177 @@ function SkillsDashboard({ activeCourse, examAnalysis, reportData, streaming, on
           </section>
         ))}
       </div>
+    </div>
+  );
+}
+
+/* ── Manage view (历史 tab redesign) ──
+   Management dashboard: cache / index / system status, per the v0.2 design.
+   Pure client-side reading of localStorage + /api/status data. */
+function manageScanStorage() {
+  let globalKeys = 0, courseKeys = 0, otherKeys = 0, bytes = 0;
+  const PREF_PREFIX = "nano-nlm:v1:";
+  const PREF_KINDS = new Set([
+    "theme", "density", "base-size", "backend", "persona", "persona-icon",
+    "user-lang", "upload-engine", "notes-toolbar-collapsed", "notes-toc-hidden",
+    "kg-legend-hidden", "pdf-outline-hidden", "assistant:show-suggestions",
+  ]);
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i) || "";
+      const v = localStorage.getItem(k) || "";
+      bytes += (k.length + v.length) * 2;
+      if (k.startsWith(PREF_PREFIX)) {
+        const rest = k.slice(PREF_PREFIX.length);
+        if (PREF_KINDS.has(rest)) globalKeys++;
+        else courseKeys++;
+      } else {
+        otherKeys++;
+      }
+    }
+  } catch (e) { /* private browsing */ }
+  return { globalKeys, courseKeys, otherKeys, bytes };
+}
+
+function fmtBytes(n) {
+  if (n < 1024) return n + " B";
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
+  return (n / 1024 / 1024).toFixed(2) + " MB";
+}
+
+function ManageView({ t, visibleCourses, totalChunks, backendStatus, sourcesTotal, activeSourcesCount, sessionDays, onRescan }) {
+  const [scan, setScan] = React.useState(() => manageScanStorage());
+  React.useEffect(() => { setScan(manageScanStorage()); }, []);
+  const usage = (backendStatus && backendStatus.usage) || {};
+  const totalTokens = (usage.input_tokens || 0) + (usage.output_tokens || 0);
+  const providers = (backendStatus && backendStatus.providers && backendStatus.providers.providers) || [];
+  const enabled = providers.filter(p => p.enabled !== false);
+  const defaultId = backendStatus && backendStatus.providers && backendStatus.providers.default_backend_id;
+  const row = enabled.find(p => p.id === defaultId) || enabled[0];
+  const modelLabel = row ? (row.model || row.label || row.id)
+    : ((backendStatus && (backendStatus.backends || [])[0]) || "—");
+  const indexReady = !!backendStatus && Array.isArray(backendStatus.backends) && backendStatus.backends.length > 0;
+  const entries = Object.entries(sessionDays || {}).reverse();
+  const cap = 5 * 1024 * 1024;
+  const pct = Math.min(100, (scan.bytes / cap) * 100);
+
+  function clearCache() {
+    if (!window.confirm(t("manage.clear_cache"))) return;
+    const PREF_PREFIX = "nano-nlm:v1:";
+    const KEEP = new Set([
+      "theme", "density", "base-size", "backend", "persona", "persona-icon",
+      "user-lang", "upload-engine", "assistant:show-suggestions",
+      "notes-toolbar-collapsed", "notes-toc-hidden", "kg-legend-hidden",
+      "pdf-outline-hidden",
+    ]);
+    const victims = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k) continue;
+        if (!k.startsWith(PREF_PREFIX)) { victims.push(k); continue; }
+        const rest = k.slice(PREF_PREFIX.length);
+        if (!KEEP.has(rest)) victims.push(k);
+      }
+    } catch (e) { /* nop */ }
+    victims.forEach(k => { try { localStorage.removeItem(k); } catch (e) {} });
+    window.alert(t("manage.clear_done", { n: victims.length }));
+    window.location.reload();
+  }
+
+  return (
+    <div className="reader-body manage-page" data-screen-label={t("manage.title")}>
+      <h2 className="manage-title">{t("manage.title")}</h2>
+      <p className="manage-sub">{t("manage.subtitle")}</p>
+
+      <div className="manage-stats">
+        <div className="manage-stat-card">
+          <div className="manage-stat-icon">🗂</div>
+          <div className="manage-stat-label">{t("manage.active_courses")}</div>
+          <div className="manage-stat-value">{visibleCourses.length}</div>
+        </div>
+        <div className="manage-stat-card">
+          <div className="manage-stat-icon ok">🗄</div>
+          <div className="manage-stat-label">{t("manage.index_chunks")}</div>
+          <div className="manage-stat-value">{totalChunks}</div>
+        </div>
+        <div className="manage-stat-card">
+          <div className="manage-stat-icon warn">🪙</div>
+          <div className="manage-stat-label">{t("manage.total_tokens")}</div>
+          <div className="manage-stat-value">{totalTokens.toLocaleString()}</div>
+          <div className="manage-stat-extra" style={{ display: "block", marginTop: 4 }}>
+            {t("manage.tokens_in", { n: (usage.input_tokens || 0).toLocaleString() })}
+            {" · "}
+            {t("manage.tokens_out", { n: (usage.output_tokens || 0).toLocaleString() })}
+          </div>
+        </div>
+      </div>
+
+      <div className="manage-card">
+        <div className="manage-card-head">
+          <h3>{t("manage.local_cache")}</h3>
+          <span className="mh-sub mono">localStorage</span>
+          <span className="mh-right">{t("manage.cache_total", { size: fmtBytes(scan.bytes) })}</span>
+        </div>
+        <div className="manage-storage-bar"><div style={{ width: pct + "%" }} /></div>
+        <div className="manage-kv-grid">
+          <div className="manage-kv"><b>{scan.globalKeys}</b><span>{t("manage.cache_global")}</span></div>
+          <div className="manage-kv"><b>{scan.courseKeys}</b><span>{t("manage.cache_courses")}</span></div>
+          <div className="manage-kv"><b>{scan.otherKeys}</b><span>{t("manage.cache_other")}</span></div>
+        </div>
+        <div className="manage-actions">
+          <button className="btn" onClick={() => { setScan(manageScanStorage()); onRescan && onRescan(); }}>
+            ↻ {t("manage.rescan")}
+          </button>
+          <button className="btn danger" onClick={clearCache}>{t("manage.clear_cache")}</button>
+        </div>
+      </div>
+
+      <div className="manage-card">
+        <div className="manage-card-head">
+          <h3>{t("manage.sys")}</h3>
+          <span className="mh-right"><span className="ver-chip mono">v0.2.0</span></span>
+        </div>
+        <div className="manage-sys-rows">
+          <div className="manage-sys-row">
+            <span className="k">{t("manage.sys_model")}</span>
+            <span className="v">{modelLabel}</span>
+          </div>
+          <div className="manage-sys-row">
+            <span className="k">{t("manage.sys_index")}</span>
+            <span className="v">
+              <span className="ready-dot" style={{ background: indexReady ? "var(--ok)" : "var(--bad)" }} />
+              {indexReady ? t("manage.sys_ready") : t("manage.sys_not_ready")}
+            </span>
+          </div>
+          <div className="manage-sys-row">
+            <span className="k">{t("manage.sys_context")}</span>
+            <span className="v">{t("manage.sys_context_val", { n: activeSourcesCount, total: sourcesTotal })}</span>
+          </div>
+          <div className="manage-sys-row">
+            <span className="k">{t("manage.sys_storage")}</span>
+            <span className="v">{t("manage.sys_storage_val")}</span>
+          </div>
+        </div>
+      </div>
+
+      {entries.length > 0 && (
+        <div className="manage-card">
+          <div className="manage-card-head"><h3>{t("manage.sessions")}</h3></div>
+          {entries.map(([date, items]) => (
+            <section className="history-day" key={date}>
+              <h3>{date}</h3>
+              {(items || []).map(item => (
+                <div className="history-entry" key={item.id}>
+                  <span className="mono">{item.timestamp}</span>
+                  <b>{item.course_id || "All"}</b>
+                  <span>{item.kind}</span>
+                </div>
+              ))}
+            </section>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

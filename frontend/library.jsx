@@ -1,4 +1,4 @@
-/* global React, SAMPLE_SOURCES, SAMPLE_COLLECTIONS */
+/* global React, SAMPLE_COLLECTIONS */
 const { useState, useRef, useEffect } = React;
 
 function FileIcon({ type }) {
@@ -22,7 +22,12 @@ function SourceItem({ s, active, onPick, onCheckboxClick }) {
   );
 }
 
-function Library({ sources, collections, activeId, onPick, onToggle, onToggleMany, onStartUpload, uploading }) {
+function Library({
+  sources, collections, activeId, onPick, onToggle, onToggleMany,
+  onStartUpload, uploading,
+  courses, activeCourse, onCourseChange, totalChunks, onManageCourses,
+  hiddenCount, onOpenSettings, theme, onToggleTheme,
+}) {
   const t = useT();
   // Collections list — prefer the explicit prop (lifted to React state
   // in App by review-swarm v2 fix-soon #8). Fall back to the legacy
@@ -43,6 +48,23 @@ function Library({ sources, collections, activeId, onPick, onToggle, onToggleMan
   // anchor from the previous course. Reset whenever `sources` identity
   // changes (it's a fresh array reference on every getSources resolve).
   useEffect(() => { lastToggledRef.current = null; }, [sources]);
+
+  // Storage usage gauge (sidebar footer). Recomputed when the source
+  // list changes — cheap enough, and covers the common moments where
+  // cache size moves (generation writes, course switch cleanup).
+  const [bytes, setBytes] = useState(0);
+  useEffect(() => {
+    try {
+      let n = 0;
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i) || "";
+        n += (k.length + (localStorage.getItem(k) || "").length) * 2;
+      }
+      setBytes(n);
+    } catch (e) { /* private mode */ }
+  }, [sources, uploading]);
+  const cap = 5 * 1024 * 1024;
+  const storagePct = Math.min(100, (bytes / cap) * 100);
 
   const checkedCount = sources.filter(s => s.checked).length;
   const total = sources.length;
@@ -105,85 +127,138 @@ function Library({ sources, collections, activeId, onPick, onToggle, onToggleMan
 
   return (
     <aside className="library" data-screen-label="Library">
-      <div className="lib-section">
-        <h3>{t("library.sources")}</h3>
-        <span className="count mono">{t("library.in_context", { n: checkedCount, total })}</span>
+      <div className="lib-course">
+        <div className="lib-course-select">
+          <span className="globe">🌐</span>
+          <select
+            value={activeCourse || ""}
+            onChange={e => onCourseChange && onCourseChange(e.target.value)}
+            aria-label={t("library.all_courses")}
+          >
+            <option value="">
+              {t("library.all_courses")}{typeof totalChunks === "number" && totalChunks > 0 ? ` · ${totalChunks} chunks` : ""}
+            </option>
+            {(courses || []).map(c => (
+              <option key={c.id} value={c.id}>
+                {c.name}{typeof c.chunks === "number" ? ` · ${c.chunks} chunks` : ""}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      {total > 0 && (
-        <div className="lib-bulk-bar mono" style={{
-          display: "flex", gap: 4, padding: "2px 4px 6px", flexWrap: "wrap",
-          fontSize: 11,
-        }}>
-          <button
-            className="lib-bulk-btn"
-            onClick={selectAll}
-            disabled={allChecked}
-            title={t("library.select_all_tip")}
-          >{t("library.select_all")}</button>
-          <button
-            className="lib-bulk-btn"
-            onClick={selectNone}
-            disabled={noneChecked}
-            title={t("library.select_none_tip")}
-          >{t("library.select_none")}</button>
-          <button
-            className="lib-bulk-btn"
-            onClick={invertSelection}
-            title={t("library.invert_tip")}
-          >{t("library.invert")}</button>
-          <span style={{ marginLeft: "auto", color: "var(--ink-3)" }}>
-            {t("library.shift_hint")}
-          </span>
+      <div className="lib-scroll">
+        <div className="lib-section">
+          <h3>{t("library.sources")}</h3>
+          <span className="count mono">{t("library.in_context", { n: checkedCount, total })}</span>
         </div>
-      )}
 
-      <div
-        className={"dropzone" + (hot ? " hot" : "")}
-        onDragOver={(e) => { e.preventDefault(); setHot(true); }}
-        onDragLeave={() => setHot(false)}
-        onDrop={(e) => { e.preventDefault(); setHot(false); onStartUpload(); }}
-        onClick={onStartUpload}
-      >
-        <div className="plus">+</div>
-        <div>{t("library.drop")}</div>
-        <div className="hint">pdf · pptx · docx · png · md</div>
-      </div>
-
-      {uploading && (
-        <div className="uploading">
-          <div className="lbl mono">{uploading.name}</div>
-          <div className="bar"><div style={{ width: uploading.pct + "%" }}></div></div>
-          <div className="lbl mono">{uploading.pct}%</div>
-        </div>
-      )}
-
-      <div className="lib-list">
-        {sources.map(s => (
-          <SourceItem
-            key={s.id}
-            s={s}
-            active={s.id === activeId}
-            onPick={onPick}
-            onCheckboxClick={handleCheckboxClick}
-          />
-        ))}
-      </div>
-
-      <div className="collections">
-        <div className="lib-section" style={{ padding: "4px 4px 6px" }}>
-          <h3>{t("library.collections")}</h3>
-        </div>
-        {collectionsList.map(c => (
-          <div key={c.id} className="collection-row">
-            <div className="dot" style={{ color: c.color }}></div>
-            <span>{c.name}</span>
-            <span className="n">{c.count}</span>
+        {total > 0 && (
+          <div className="lib-bulk-bar mono">
+            <button
+              className="lib-bulk-btn"
+              onClick={selectAll}
+              disabled={allChecked}
+              title={t("library.select_all_tip")}
+            >{t("library.select_all")}</button>
+            <button
+              className="lib-bulk-btn"
+              onClick={selectNone}
+              disabled={noneChecked}
+              title={t("library.select_none_tip")}
+            >{t("library.select_none")}</button>
+            <button
+              className="lib-bulk-btn"
+              onClick={invertSelection}
+              title={t("library.invert_tip")}
+            >{t("library.invert")}</button>
           </div>
-        ))}
+        )}
+
+        <div
+          className={"dropzone" + (hot ? " hot" : "")}
+          onDragOver={(e) => { e.preventDefault(); setHot(true); }}
+          onDragLeave={() => setHot(false)}
+          onDrop={(e) => { e.preventDefault(); setHot(false); onStartUpload(); }}
+          onClick={onStartUpload}
+        >
+          <div className="plus">+</div>
+          <div>{t("library.drop")}</div>
+          <div className="hint">pdf · pptx · docx · png · md</div>
+        </div>
+
+        {uploading && (
+          <div className="uploading">
+            <div className="lbl mono">{uploading.name}</div>
+            <div className="bar"><div style={{ width: uploading.pct + "%" }}></div></div>
+            <div className="lbl mono">{uploading.pct}%</div>
+          </div>
+        )}
+
+        <div className="lib-list">
+          {sources.map(s => (
+            <SourceItem
+              key={s.id}
+              s={s}
+              active={s.id === activeId}
+              onPick={onPick}
+              onCheckboxClick={handleCheckboxClick}
+            />
+          ))}
+        </div>
+
+        <div className="collections">
+          <div className="lib-section">
+            <h3>{t("library.collections")}</h3>
+            {typeof onManageCourses === "function" && (
+              <button
+                className="course-manage-btn mono"
+                style={{ marginLeft: "auto" }}
+                title={hiddenCount ? `${hiddenCount} hidden` : t("library.collections")}
+                onClick={onManageCourses}
+              >{hiddenCount ? `▾ ${hiddenCount}` : "▾"}</button>
+            )}
+          </div>
+          {collectionsList.map(c => (
+            <div
+              key={c.id}
+              className={"collection-row" + (c.id === activeCourse ? " active" : "")}
+              onClick={() => onCourseChange && onCourseChange(c.id)}
+            >
+              <div className="dot" style={{ color: c.color }}></div>
+              <span>{c.name}</span>
+              <span className="n">{c.count} chunks</span>
+            </div>
+          ))}
+          <button className="lib-newcourse" onClick={onStartUpload}>＋ {t("library.new_course_action")}</button>
+        </div>
+      </div>
+
+      <div className="lib-footer">
+        <div className="lib-storage-label">
+          <span>{t("library.storage")}</span>
+          <span className="mono">{fmtBytesLib(bytes)} / 5 MB</span>
+        </div>
+        <div className="lib-storage-bar"><div style={{ width: storagePct + "%" }} /></div>
+        <div className="lib-storage-hint">{t("library.storage_ok")}</div>
+        <div className="lib-footer-actions">
+          <button className="lib-set-btn" onClick={onOpenSettings}>⚙ {t("library.settings")}</button>
+          <div className="spacer"></div>
+          <button
+            className="icon-btn"
+            title={theme === "dark" ? "Light mode" : "Dark mode"}
+            onClick={onToggleTheme}
+          >{theme === "dark" ? "☀" : "🌙"}</button>
+        </div>
       </div>
     </aside>
   );
+}
+
+function fmtBytesLib(n) {
+  if (n < 1024) return n + " B";
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
+  return (n / 1024 / 1024).toFixed(2) + " MB";
 }
 
 Object.assign(window, { Library });
