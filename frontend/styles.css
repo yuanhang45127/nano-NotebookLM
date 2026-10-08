@@ -493,7 +493,15 @@ input, textarea, select { font-family: inherit; color: var(--ink); }
 .empty-courses-card p { margin: 0 0 20px; color: var(--ink-3); }
 
 /* ── reader ───────────────────────────────────────────────────────────── */
-.reader { height: 100%; min-height: 0; overflow-y: auto; display: flex; justify-content: center; }
+.reader {
+  height: 100%; min-height: 0; overflow-y: auto;
+  scrollbar-gutter: stable;
+  display: flex; justify-content: center;
+  /* flex-start: the paper card must grow with its content — the default
+     stretch locks the card to the viewport height and long pages spill
+     out of the card onto the page background. */
+  align-items: flex-start;
+}
 .reader .page {
   width: 100%; max-width: 880px;
   background: var(--surface);
@@ -502,9 +510,8 @@ input, textarea, select { font-family: inherit; color: var(--ink); }
   box-shadow: var(--shadow-1);
   padding: 44px 56px 30px;
   margin-bottom: 16px;
-  min-height: 0;
 }
-.reader .page.pdf-mode { padding: 18px; display: flex; flex-direction: column; }
+.reader .page.pdf-mode { align-self: stretch; padding: 18px; display: flex; flex-direction: column; }
 .chapter-eye {
   font-size: 11.5px; font-weight: 600; letter-spacing: .08em;
   text-transform: uppercase; color: var(--accent);
@@ -648,7 +655,7 @@ input, textarea, select { font-family: inherit; color: var(--ink); }
 .notes-toolbar-collapsed { opacity: .9; }
 .notes-edit-hint { color: var(--ink-3); font-size: 11.5px; margin: 0 0 10px; }
 
-.notes-stage { position: relative; flex: 1; min-height: 0; display: flex; justify-content: center; }
+.notes-stage { position: relative; flex: 1; min-height: 0; display: flex; justify-content: center; align-items: flex-start; }
 .notes-preview {
   width: 100%; max-width: 880px;
   background: var(--surface);
@@ -657,7 +664,6 @@ input, textarea, select { font-family: inherit; color: var(--ink); }
   box-shadow: var(--shadow-1);
   padding: 46px 56px;
   margin-bottom: 16px;
-  overflow-y: auto;
 }
 .notes-preview h1, .notes-preview .n-h { font-size: 25px; font-weight: 700; letter-spacing: -0.015em; margin: 0 0 6px; }
 .notes-preview .n-sub { color: var(--ink-3); font-size: 12.5px; margin-bottom: 24px; }
@@ -1278,11 +1284,20 @@ mark.hl.hl-purple { background: #e0d1f8; }
 .processing-retry { margin-top: 14px; }
 
 /* ── assistant panel ──────────────────────────────────────────────────── */
+.app > .assistant { position: relative; }
+.asst-resizer {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 6px;
+  cursor: col-resize; z-index: 5;
+  background: transparent; transition: background .15s;
+}
+.asst-resizer:hover, .asst-resizer.dragging { background: var(--accent-soft); }
+.icon-btn.asst-collapse { width: 26px; height: 26px; font-size: 14px; flex: none; }
 .assistant {
   background: var(--surface);
   border-left: 1px solid var(--border);
   display: flex; flex-direction: column;
   min-height: 0;
+  overflow: hidden;
 }
 .asst-header {
   display: flex; align-items: center; gap: 12px;

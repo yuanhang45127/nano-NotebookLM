@@ -58,6 +58,13 @@
   </script>
 </head>
 <body>
+  <script>
+    /* error trap: surfaces Babel/React crashes to window.__errs for headless
+       debugging; harmless in production */
+    window.__errs = [];
+    window.addEventListener("error", function (e) { window.__errs.push(String(e.message || e)); });
+    window.addEventListener("unhandledrejection", function (e) { window.__errs.push("rej: " + String(e.reason)); });
+  </script>
   <div id="root"></div>
 
   <!-- API bridge (plain JS, no Babel needed) -->

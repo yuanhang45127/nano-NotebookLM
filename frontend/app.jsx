@@ -411,6 +411,29 @@ function App() {
     try { window.localStorage.setItem("nano-nlm:v1:base-size", String(v)); } catch (e) {}
   }, []);
 
+  // v0.2: assistant panel — collapsible + drag-resizable (both persisted).
+  // Width feeds the `.app` grid through the `--assistant-w` custom property;
+  // collapsed renders the panel away entirely (0px column).
+  const [asstOpen, setAsstOpen] = useState(() => {
+    try { return window.localStorage.getItem("nano-nlm:v1:assistant-open") !== "0"; }
+    catch (e) { return true; }
+  });
+  const [asstWidth, setAsstWidth] = useState(() => {
+    try {
+      const v = parseInt(window.localStorage.getItem("nano-nlm:v1:assistant-width") || "", 10);
+      return Number.isFinite(v) && v >= 340 && v <= 720 ? v : 428;
+    } catch (e) { return 428; }
+  });
+  function toggleAssistant(open) {
+    setAsstOpen(open);
+    try { window.localStorage.setItem("nano-nlm:v1:assistant-open", open ? "1" : "0"); } catch (e) {}
+  }
+  function commitAsstWidth(w) {
+    const next = Math.max(340, Math.min(720, Math.round(w)));
+    setAsstWidth(next);
+    try { window.localStorage.setItem("nano-nlm:v1:assistant-width", String(next)); } catch (e) {}
+  }
+
   const [mode, setMode] = useState("reader");
   const [sources, setSources] = useState([]);
   const [activeId, setActiveId] = useState(null);
@@ -1814,7 +1837,7 @@ function App() {
 
   return (
     <LangContext.Provider value={userLang || "en"}>
-    <div className="app">
+    <div className="app" style={{ "--assistant-w": (asstOpen ? asstWidth : 0) + "px" }}>
       {/* ========= Top bar ========= */}
       <header className="topbar">
         <div className="brand">
@@ -1969,6 +1992,11 @@ function App() {
               but a user who just wants to bail to Settings shouldn't
               be trapped. Mid-flight uploads (no done, no errorStage)
               are NOT dismissed — those still need to finish. */}
+          <button
+            className={"icon-btn" + (asstOpen ? " active" : "")}
+            title={asstOpen ? "Hide assistant panel" : "Show assistant panel"}
+            onClick={() => toggleAssistant(!asstOpen)}
+          >💬</button>
           <button
             className="icon-btn"
             title={theme === "dark" ? "Light mode" : "Dark mode"}
@@ -2220,8 +2248,14 @@ function App() {
           down to Assistant so chat sends `active_source_file` to /api/chat.
           The backend uses it as a soft retrieval bias (graphrag boosts
           hits from this file). null when the user has no focused file
-          (e.g. All Courses with nothing picked, or sources list empty). */}
+          (e.g. All Courses with nothing picked, or sources list empty).
+          v0.2: the whole panel is collapsible (topbar 💬) and its column
+          width is drag-resizable; unmounting it collapses the grid col. */}
+      {asstOpen && (
       <Assistant
+        width={asstWidth}
+        onWidthChange={commitAsstWidth}
+        onCollapse={() => toggleAssistant(false)}
         mode={effectiveMode}
         persona={persona}
         personaIcon={personaIcon}
@@ -2239,6 +2273,7 @@ function App() {
         backend={backend}
         activeSourceFile={(sources.find(s => s.id === activeId) || {}).sourceFile || null}
       />
+      )}
 
       {/* ========= Status bar ========= */}
       <footer className="statusbar">
