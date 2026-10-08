@@ -58,8 +58,9 @@
 
   --sans: "Inter", "PingFang SC", "Noto Sans SC", "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif,
           "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji";
-  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --serif: var(--sans);
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas,
+          "PingFang SC", "Noto Sans SC", "Microsoft YaHei", monospace;
+  --serif: "Source Serif 4", Georgia, "Inter", "PingFang SC", "Noto Sans SC", "Microsoft YaHei", serif;
 
   /* compat aliases (older inline styles reference these) */
   --paper:   var(--surface);
@@ -487,7 +488,7 @@ input, textarea, select { font-family: inherit; color: var(--ink); }
   display: flex; flex-direction: column;
   padding: 14px 18px 0 18px;
 }
-.reader-body { overflow-y: auto; min-height: 0; }
+.reader-body { height: 100%; overflow-y: auto; min-height: 0; }
 
 /* empty courses CTA */
 .empty-courses-cta {
@@ -894,7 +895,11 @@ mark.hl.hl-purple { background: #e0d1f8; }
 .mm-node text { font-family: var(--sans); font-weight: 500; }
 .mm-node.root text { fill: #fff; font-weight: 600; }
 .mm-edge { stroke: var(--border-strong); }
-.kg-edge-group.hot .mm-edge { stroke: var(--accent); }
+.kg-edge-part-of .mm-edge { stroke: var(--border-strong); stroke-width: 2; }
+.kg-edge-prereq .mm-edge { stroke: var(--accent); stroke-width: 2; }
+.kg-edge-depends .mm-edge { stroke: var(--warn); stroke-dasharray: 5 4; }
+.kg-edge-related .mm-edge { stroke: var(--ink-4); }
+.kg-edge-group.hot .mm-edge { stroke: var(--accent); stroke-width: 2.5; }
 .kg-edge-label { font-size: 9px; fill: var(--ink-3); }
 
 .mindmap-legend-toggle {
@@ -944,6 +949,15 @@ mark.hl.hl-purple { background: #e0d1f8; }
   font-size: 11px; color: var(--ink-2);
 }
 .source-link:hover { border-color: var(--accent); color: var(--accent); }
+.mm-order-badge {
+  position: absolute; top: -8px; left: -8px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--accent); color: #fff;
+  font-size: 10px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+  box-shadow: var(--shadow-1);
+}
 .mm-deepdive-panel {
   position: absolute; z-index: 8;
   right: 16px; top: 16px;
@@ -1386,8 +1400,32 @@ mark.hl.hl-purple { background: #e0d1f8; }
   max-width: 96%;
   font-size: 13.5px; line-height: 1.75; color: var(--ink);
 }
-.msg.ai .bubble p { margin: 0 0 10px; }
+.bubble p { margin: 0 0 4px; }
 .msg.ai .bubble p:last-child { margin-bottom: 0; }
+/* math anchoring (contract: test_styles_have_distinct_math_treatment) */
+.msg .bubble .math-display, .math-block {
+  margin: 10px 0; padding: 8px 12px;
+  border-left: 3px solid var(--accent);
+  background: var(--surface-2);
+  border-radius: 6px;
+  text-align: center;
+  font-family: var(--mono);
+  overflow-x: auto;
+}
+.math-inline {
+  display: inline-block;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  border-radius: 6px;
+  padding: 0 6px;
+}
+/* long CJK filenames must clip, not wrap (contract: test_styles_cjk) */
+.msg .refs .ref-chip {
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .msg.ai .bubble code {
   font-family: var(--mono); font-size: 12px;
   background: var(--surface-2); border: 1px solid var(--border);
