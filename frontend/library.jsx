@@ -127,6 +127,12 @@ function Library({
 
   return (
     <aside className="library" data-screen-label="Library">
+      <div className="lib-brand">
+        <span className="logo-tile">N</span>
+        <span className="mark">nano-NotebookLM</span>
+        <span className="ed mono">v0.2</span>
+      </div>
+
       <div className="lib-course">
         <div className="lib-course-select">
           <span className="globe">🌐</span>

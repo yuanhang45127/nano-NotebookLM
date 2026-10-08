@@ -56,7 +56,8 @@
   --shadow-2: 0 4px 14px rgba(23, 23, 44, 0.08), 0 1px 4px rgba(23, 23, 44, 0.05);
   --shadow-3: 0 12px 40px rgba(23, 23, 44, 0.16);
 
-  --sans: "Inter", "PingFang SC", "Noto Sans SC", "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
+  --sans: "Inter", "PingFang SC", "Noto Sans SC", "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif,
+          "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji";
   --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --serif: var(--sans);
 
@@ -133,7 +134,7 @@ input, textarea, select { font-family: inherit; color: var(--ink); }
   grid-template-rows: var(--topbar-h) minmax(0, 1fr) var(--statusbar-h);
   grid-template-columns: var(--sidebar-w) minmax(0, 1fr) var(--assistant-w);
   grid-template-areas:
-    "brand topbar topbar"
+    "topbar topbar topbar"
     "library main assistant"
     "status status status";
   background: var(--bg);
@@ -144,21 +145,23 @@ input, textarea, select { font-family: inherit; color: var(--ink); }
 .app > .assistant { grid-area: assistant; }
 .app > .statusbar { grid-area: status; }
 
-/* top bar — brand + centered pill tabs + right actions */
+/* top bar — centered pill tabs + right actions (brand lives in the sidebar) */
 .topbar {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 16px 0 14px;
+  padding: 0 16px;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
+.nav-toggle { font-size: 17px; }
 .brand { display: flex; align-items: center; gap: 8px; min-width: calc(var(--sidebar-w) - 14px); }
-.brand .logo-tile {
+.brand .logo-tile, .lib-brand .logo-tile {
   width: 34px; height: 34px; border-radius: 10px;
   background: var(--accent-grad);
   color: #fff; display: flex; align-items: center; justify-content: center;
   font-size: 16px; font-weight: 800; letter-spacing: -0.02em;
+  line-height: 1; flex: none;
   box-shadow: var(--shadow-1);
 }
 .brand .mark { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink); }
@@ -202,7 +205,8 @@ input, textarea, select { font-family: inherit; color: var(--ink); }
   appearance: none; border: 0; cursor: pointer;
   width: 32px; height: 32px; border-radius: 9px;
   display: inline-flex; align-items: center; justify-content: center;
-  background: transparent; color: var(--ink-2); font-size: 15px;
+  background: transparent; color: var(--ink-2); font-size: 15px; line-height: 1;
+  padding: 0; overflow: visible; flex: none;
   transition: background .15s;
 }
 .icon-btn:hover { background: var(--surface-3); color: var(--ink); }
@@ -290,8 +294,18 @@ input, textarea, select { font-family: inherit; color: var(--ink); }
   overflow: hidden;
   min-height: 0;
 }
+.lib-brand {
+  display: flex; align-items: center; gap: 8px;
+  padding: 14px 14px 10px;
+  flex: none;
+}
+.lib-brand .mark { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink); }
+.lib-brand .ed {
+  font-size: 10px; color: var(--ink-3);
+  background: var(--surface-3); border-radius: 6px; padding: 1px 6px;
+}
 .lib-course {
-  padding: 14px 14px 6px;
+  padding: 0 14px 6px;
 }
 .lib-course-select {
   position: relative; display: flex; align-items: center; gap: 9px;
@@ -1616,18 +1630,87 @@ mark.hl.hl-purple { background: #e0d1f8; }
 .twk-field { display: flex; flex-direction: column; gap: 4px; }
 .eye { cursor: pointer; }
 
-/* responsive fallback: below 1280px the assistant becomes an overlay */
+/* ── responsive ───────────────────────────────────────────────────────── */
+.only-mobile { display: none !important; }
+
+/* below 1280px: assistant collapses into a right-side overlay */
 @media (max-width: 1280px) {
   .app {
     grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
     grid-template-areas:
-      "brand topbar"
+      "topbar topbar"
       "library main"
       "status status";
   }
   .app > .assistant {
     position: fixed; right: 0; top: var(--topbar-h); bottom: var(--statusbar-h);
-    width: var(--assistant-w); z-index: 40;
+    width: min(var(--assistant-w), 92vw); z-index: 40;
     box-shadow: var(--shadow-3);
+    border-left: 1px solid var(--border);
   }
+}
+
+/* below 900px: single column — Library becomes a left drawer */
+@media (max-width: 900px) {
+  .only-mobile { display: inline-flex !important; }
+  .hide-mobile { display: none !important; }
+
+  .app {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "topbar"
+      "main"
+      "status";
+  }
+  .topbar { padding: 0 10px; gap: 8px; }
+  .tabs {
+    flex: 1; min-width: 0; margin: 0;
+    overflow-x: auto; scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { padding: 7px 14px; white-space: nowrap; }
+
+  .app > .library {
+    position: fixed; left: 0; top: 0; bottom: 0;
+    width: min(84vw, 322px); z-index: 70;
+    transform: translateX(-105%);
+    transition: transform .22s ease;
+    box-shadow: var(--shadow-3);
+    border-right: 1px solid var(--border);
+  }
+  .app.nav-open > .library { transform: none; }
+  .nav-backdrop {
+    position: fixed; inset: 0; z-index: 60;
+    background: rgba(15, 15, 25, 0.45);
+    border: 0; padding: 0; cursor: pointer;
+  }
+
+  .workspace { padding: 10px 10px 0; }
+  .statusbar { gap: 12px; padding: 0 12px; }
+  .statusbar .item:nth-child(2), .statusbar .item:nth-child(3) { display: none; }
+}
+
+/* below 640px: phones — comfortable reading, single-column cards */
+@media (max-width: 640px) {
+  body { font-size: 13.5px; }
+  .workspace { padding: 8px 8px 0; }
+  .reader .page, .notes-preview { padding: 26px 18px 22px; border-radius: 16px; }
+  .reader h1 { font-size: 21px; }
+  .reader .sub { margin-bottom: 18px; }
+  .notes-preview { padding: 26px 18px; }
+  .notes-toc { width: 200px; }
+  .notes-hl-drawer { width: 190px; }
+  .exam-prep-header { flex-direction: column; gap: 10px; align-items: flex-start; }
+  .exam-prep-actions { width: 100%; }
+  .exam-prep-actions .btn { flex: 1; }
+  .exam-prep-cta-row .btn.primary { height: auto; min-height: 48px; flex-wrap: wrap; gap: 4px 10px; padding: 10px 16px; }
+  .topic-grid, .manage-stats, .manage-kv-grid, .settings-grid, .skill-grid { grid-template-columns: 1fr; }
+  .exam-result-summary { flex-wrap: wrap; }
+  .exam-result-stat { min-width: 44%; }
+  .asst-input { margin: 0 10px 4px; }
+  .asst-suggest { padding: 4px 12px 8px; }
+  .empty-courses-card { padding: 30px 22px; margin: 0 10px; }
+  .chunk-target { padding: 12px 12px; }
+  .doc-chunk { margin: 0 -4px 4px; padding: 6px 6px; }
+  .page-footer { flex-direction: column; gap: 4px; }
 }

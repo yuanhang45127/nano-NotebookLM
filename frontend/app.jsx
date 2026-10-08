@@ -1839,12 +1839,16 @@ function App() {
     <LangContext.Provider value={userLang || "en"}>
     <div className="app" style={{ "--assistant-w": (asstOpen ? asstWidth : 0) + "px" }}>
       {/* ========= Top bar ========= */}
+      {/* v0.2.1: brand moved into the Library sidebar (sits directly above
+          the course selector); on mobile the sidebar becomes a drawer and
+          the brand travels with it, so the topbar only carries ☰ + tabs +
+          actions. */}
       <header className="topbar">
-        <div className="brand">
-          <span className="logo-tile">N</span>
-          <span className="mark">nano-NotebookLM</span>
-          <span className="ed mono">v0.2</span>
-        </div>
+        <button
+          className="icon-btn only-mobile nav-toggle"
+          title="课程 / 来源"
+          onClick={() => setNavOpen(v => !v)}
+        >☰</button>
         <nav className="tabs" aria-label="Views">
           {tabs.map(tb => (
             <button
@@ -1861,7 +1865,7 @@ function App() {
         <div className="spacer"></div>
         <div className="topbar-actions">
           <button
-            className="lang-chip mono"
+            className="lang-chip mono hide-mobile"
             title={userLang ? t("topbar.lang_chip_title") : t("topbar.lang_chip_title_unset")}
             onClick={() => setShowLangModal(true)}
             disabled={streaming}
@@ -1914,9 +1918,9 @@ function App() {
               >{labelFor(backend)}</button>
             );
           })()}
-          <button className="icon-btn" title="Generate Notes (uses cache when available)" onClick={() => handleGenerateNotes()} disabled={streaming}>📝</button>
+          <button className="icon-btn hide-mobile" title="Generate Notes (uses cache when available)" onClick={() => handleGenerateNotes()} disabled={streaming}>📝</button>
           <button
-            className="icon-btn"
+            className="icon-btn hide-mobile"
             title="Force regenerate all sections (ignore per-file cache)"
             onClick={() => handleGenerateNotes({ force: true })}
             disabled={streaming}
@@ -1962,9 +1966,9 @@ function App() {
           {/* Quiz icon-btn hidden 2026-05-12: superseded by Exam Prep.
               handleGenerateQuiz + /api/quiz remain so Knowledge Graph's
               "Practice 3" affordance and the legacy entry can be restored. */}
-          <button className="icon-btn" title="Build Knowledge Graph" onClick={handleGenerateMindmap} disabled={streaming}>🧠</button>
-          <button className="icon-btn" title="Exam Analysis" onClick={() => handleSkillEntry("exam-analysis")} disabled={streaming}>⌁</button>
-          <button className="icon-btn" title="Course Report" onClick={() => handleSkillEntry("report")} disabled={streaming}>▤</button>
+          <button className="icon-btn hide-mobile" title="Build Knowledge Graph" onClick={handleGenerateMindmap} disabled={streaming}>🧠</button>
+          <button className="icon-btn hide-mobile" title="Exam Analysis" onClick={() => handleSkillEntry("exam-analysis")} disabled={streaming}>⌁</button>
+          <button className="icon-btn hide-mobile" title="Course Report" onClick={() => handleSkillEntry("report")} disabled={streaming}>▤</button>
           {/* Mastery Dashboard icon 2026-05-20 retired: superseded by ★ Exam
               Prep tab. Backend mastery_tracker + /api/mastery still wired
               server-side; the frontend state, GET call, and SkillsDashboard
