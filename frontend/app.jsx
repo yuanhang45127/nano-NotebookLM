@@ -140,7 +140,7 @@ function isValidCourseId(s) {
 // fix-all #H1: chips hand back `c.id` (directory key), NOT `c.name` (display
 // label) — a renamed course has `meta.name != cid` and `/api/upload/{course_id}`
 // is keyed on cid.
-function CoursePickerModal({ courses, defaultId, defaultEngine, onPick, onCancel }) {
+function CoursePickerModal({ courses, defaultId, defaultEngine, onPick, onCancel, userLang = null, backend = null, onCreateScratch = false }) {
   const t = useT();
   // Selected course: either an existing chip's id, or "__new__" when the
   // user is creating a new course. Defaults to the active course (if any),
@@ -154,6 +154,9 @@ function CoursePickerModal({ courses, defaultId, defaultEngine, onPick, onCancel
   const [selectedId, setSelectedId] = useState(initialSelected);
   const [newName, setNewName] = useState("");
   const [engine, setEngine] = useState(defaultEngine === "mineru" ? "mineru" : "pymupdf");
+  // v0.2 scratch notes: the modal's top-level 二级菜单 — 「上传课件」 vs
+  // 「AI 从零生成」. Scratch mode swaps the whole body for the wizard.
+  const [pickMode, setPickMode] = useState("upload");
 
   const fileInputRef = useRef(null);
   const onCancelRef = useRef(onCancel);
@@ -233,6 +236,31 @@ function CoursePickerModal({ courses, defaultId, defaultEngine, onPick, onCancel
             title={t("upload.close_title")}
           >✕</button>
         </div>
+
+        {onCreateScratch && (
+          <div className="course-picker-modes">
+            <button
+              type="button"
+              className={"course-picker-mode" + (pickMode === "upload" ? " on" : "")}
+              onClick={() => setPickMode("upload")}
+            >📎 {t("scratch.mode_upload")}</button>
+            <button
+              type="button"
+              className={"course-picker-mode" + (pickMode === "scratch" ? " on" : "")}
+              onClick={() => setPickMode("scratch")}
+            >✨ {t("scratch.mode_scratch")}</button>
+          </div>
+        )}
+
+        {pickMode === "scratch" && onCreateScratch ? (
+          <ScratchPanel
+            userLang={userLang}
+            backend={backend}
+            onCancel={onCancel}
+            onPicked={(courseId, files) => onPick(courseId, files, "pymupdf")}
+          />
+        ) : (
+        <>
 
         {/* Step 1: course selection. Existing chips + a "+ 新建课程" chip in
             the same row. Selecting the new-course chip reveals an inline
@@ -356,6 +384,8 @@ function CoursePickerModal({ courses, defaultId, defaultEngine, onPick, onCancel
           aria-hidden="true"
           tabIndex={-1}
         />
+        </>
+        )}
       </div>
     </div>
   );
@@ -2333,6 +2363,9 @@ function App() {
           courses={visibleCourses}
           defaultId={activeCourse || ""}
           defaultEngine={uploadEngine}
+          userLang={userLang}
+          backend={backend}
+          onCreateScratch={true}
           onPick={(courseId, files, engine) => coursePickerResolve({ courseId, files, engine })}
           onCancel={() => coursePickerResolve(null)}
         />
