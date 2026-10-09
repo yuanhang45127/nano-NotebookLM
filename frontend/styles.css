@@ -360,17 +360,20 @@ input, textarea, select { font-family: inherit; color: var(--ink); }
 
 .dropzone {
   border: 1.5px dashed var(--border-strong);
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   background: var(--surface-2);
-  padding: 18px 12px;
+  padding: 9px 10px;
+  display: flex; align-items: center; justify-content: center;
+  flex-wrap: wrap; gap: 4px 8px;
   text-align: center;
-  color: var(--ink-3); font-size: 12.5px;
+  color: var(--ink-3); font-size: 12px;
   cursor: pointer;
   transition: border-color .15s, background .15s;
 }
 .dropzone:hover, .dropzone.hot { border-color: var(--accent); background: var(--accent-softer); color: var(--accent); }
-.dropzone .plus { font-size: 20px; font-weight: 300; color: var(--accent); margin-bottom: 4px; }
-.dropzone .hint { font-size: 11px; color: var(--ink-4); margin-top: 3px; }
+.dropzone .plus { font-size: 15px; font-weight: 500; color: var(--accent); line-height: 1; }
+.dropzone .dz-text { font-weight: 500; }
+.dropzone .hint { font-size: 10.5px; color: var(--ink-4); }
 
 .uploading { padding: 8px 2px; }
 .uploading .lbl { font-size: 11px; color: var(--ink-3); }
