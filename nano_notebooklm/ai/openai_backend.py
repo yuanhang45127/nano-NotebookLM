@@ -65,6 +65,140 @@ _DEFAULT_HTTP_TIMEOUT = float(os.getenv("OPENAI_HTTP_TIMEOUT_SECONDS", "600"))
 _REASONING_EFFORT = os.getenv("OPENAI_REASONING_EFFORT", "medium").strip().lower()
 _REASONING_EFFORT_VALID = _REASONING_EFFORT in {"low", "medium", "high"}
 
+# ── 2026-10 protocol modernization ─────────────────────────────────────
+# Newer OpenAI-compatible providers diverge from the classic schema in
+# three ways this backend must tolerate:
+#   1. Reasoning models (DeepSeek V4, LongCat, GLM-5.x thinking, …) put
+#      the answer in non-standard `reasoning_content` and leave `content`
+#      empty — with no way to disable thinking via the gateway.
+#   2. Some models (MiniMax M2) inline <think>…</think> blocks in content.
+#   3. Newer endpoints reject `max_tokens` and want `max_completion_tokens`.
+_THINK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
+
+
+def _strip_think(text: str) -> str:
+    text = _THINK_RE.sub("", text or "")
+    # an unclosed <think> (truncated stream) — drop from the marker to EOF
+    i = text.rfind("<think>")
+    if i != -1 and "</think>" not in text[i:]:
+        text = text[:i]
+    return text
+
+
+def _extract_reasoning(obj, *names):
+    """Pull non-standard reasoning fields off SDK models / raw dicts."""
+    for n in names:
+        v = getattr(obj, n, None)
+        if v:
+            return v
+    extra = getattr(obj, "model_extra", None)
+    if isinstance(extra, dict):
+        for n in names:
+            v = extra.get(n)
+            if v:
+                return v
+    if isinstance(obj, dict):
+        for n in names:
+            v = obj.get(n)
+            if v:
+                return v
+    return None
+
+
+class _ThinkStripper:
+    """Streaming-safe <think> block stripper.
+
+    Buffers output while inside an unclosed <think> block (keeping only a
+    small tail so the search index stays valid across the trim); swallows
+    the whitespace right after </think> to match the non-streaming regex;
+    holds back a short tail when a partial "<think" tag may be arriving."""
+
+    TAIL = 8
+
+    def __init__(self):
+        self.buf = ""
+        self.in_think = False
+        self.skip_ws = False
+
+    def feed(self, delta: str) -> str:
+        self.buf += delta
+        return self._drain(final=False)
+
+    def flush(self) -> str:
+        if self.in_think:
+            return ""  # unclosed think block at EOF → drop entirely
+        out = self.buf.lstrip() if self.skip_ws else self.buf
+        self.buf = ""
+        self.skip_ws = False
+        return out
+
+    def _drain(self, final: bool) -> str:
+        out = ""
+        while True:
+            if self.in_think:
+                end = self.buf.find("</think>")
+                if end == -1:
+                    if final:
+                        self.buf = ""  # never closed → nothing to emit
+                    else:
+                        self.buf = self.buf[-self.TAIL:]
+                    return out
+                self.buf = self.buf[end + len("</think>"):]
+                self.in_think = False
+                self.skip_ws = True
+                continue
+            if self.skip_ws:
+                stripped = self.buf.lstrip()
+                if not stripped and not final:
+                    self.buf = ""  # pure whitespace so far — keep swallowing
+                    return out
+                self.buf = stripped
+                self.skip_ws = False
+                continue
+            start = self.buf.find("<think>")
+            if start == -1:
+                if final:
+                    out += self.buf
+                    self.buf = ""
+                    return out
+                keep = 0
+                tail = self.buf[-self.TAIL:]
+                i = tail.rfind("<")
+                if i != -1:
+                    keep = len(tail) - i
+                if keep:
+                    out += self.buf[: len(self.buf) - keep]
+                    self.buf = self.buf[len(self.buf) - keep:]
+                else:
+                    out += self.buf
+                    self.buf = ""
+                return out
+            out += self.buf[:start]
+            open_end = self.buf.find(">", start)
+            if open_end == -1:
+                if final:
+                    self.buf = ""
+                    return out
+                self.buf = self.buf[start:]  # wait for the tag to close
+                return out
+            self.buf = self.buf[open_end + 1:]
+            self.in_think = True
+            self.skip_ws = True
+
+
+def _chat_create_with_token_fallback(client, kwargs):
+    """chat.completions.create with max_tokens → max_completion_tokens
+    fallback for newer OpenAI-compatible endpoints that reject max_tokens."""
+    try:
+        return client.chat.completions.create(**kwargs)
+    except openai.BadRequestError as e:
+        msg = str(e)
+        if "max_tokens" in kwargs and ("max_completion_tokens" in msg or "max_tokens is not supported" in msg):
+            retry = dict(kwargs)
+            retry["max_completion_tokens"] = retry.pop("max_tokens")
+            return client.chat.completions.create(**retry)
+        raise
+
 
 class OpenAIBackend(LLMBackend):
     name = "openai"
@@ -97,6 +231,23 @@ class OpenAIBackend(LLMBackend):
             base_url=self.base_url,
             timeout=httpx.Timeout(effective_timeout, connect=10.0),
         )
+
+    def _thinking_extra(self) -> dict | None:
+        """Provider-specific body fields that disable thinking mode.
+
+        Reasoning models burn latency (and, with small max_tokens, the
+        entire budget) on hidden thinking even for trivial rewrites. The
+        toggles below cover the families seen behind OpenAI-compatible
+        gateways; unknown models rely on the reasoning_content fallback
+        instead of a disable flag."""
+        name = (self.model or "").lower()
+        if self._is_deepseek or "deepseek" in name:
+            return {"thinking": {"type": "disabled"}}
+        if "glm" in name or "zhipu" in name:
+            return {"thinking": {"type": "disabled"}}
+        if "qwen" in name or "qwq" in name:
+            return {"enable_thinking": False}
+        return None
 
     async def complete(
         self,
@@ -180,13 +331,21 @@ class OpenAIBackend(LLMBackend):
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
-        if self._is_deepseek:
-            kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
-        resp = self.client.chat.completions.create(**kwargs)
+        extra = self._thinking_extra()
+        if extra:
+            kwargs["extra_body"] = extra
+        resp = _chat_create_with_token_fallback(self.client, kwargs)
         choice = resp.choices[0]
         usage = resp.usage
+        # Reasoning models may leave content empty and stash the answer in
+        # non-standard `reasoning_content` — surface it rather than
+        # returning an empty response (2026-10 protocol modernization).
+        content = choice.message.content or ""
+        if not content.strip():
+            content = _extract_reasoning(choice.message, "reasoning_content", "reasoning") or ""
+        content = _strip_think(content)
         return LLMResponse(
-            content=choice.message.content or "",
+            content=content,
             model=resp.model or self.model,
             input_tokens=usage.prompt_tokens if usage else 0,
             output_tokens=usage.completion_tokens if usage else 0,
@@ -311,19 +470,37 @@ class OpenAIBackend(LLMBackend):
                         "max_tokens": max_tokens,
                         "stream": True,
                     }
-                    if self._is_deepseek:
-                        stream_kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
-                    stream = self.client.chat.completions.create(**stream_kwargs)
+                    extra = self._thinking_extra()
+                    if extra:
+                        stream_kwargs["extra_body"] = extra
+                    stream = _chat_create_with_token_fallback(self.client, stream_kwargs)
                     active_stream["obj"] = stream
+                    # 2026-10 protocol modernization: strip <think> blocks
+                    # on the way out; if the model emits ONLY reasoning
+                    # (content never arrives), flush reasoning_content as
+                    # the final body instead of returning an empty answer.
+                    stripper = _ThinkStripper()
+                    emitted_len = 0
+                    reasoning_buf = []
+                    saw_content = False
                     for event in stream:
                         if cancel_event.is_set():
                             break
                         if not event.choices:
                             continue
                         choice = event.choices[0]
-                        delta = getattr(choice.delta, "content", None)
+                        delta_obj = choice.delta
+                        delta = getattr(delta_obj, "content", None)
                         if delta:
-                            _thread_put(delta)
+                            saw_content = True
+                            cleaned = stripper.feed(delta)
+                            if cleaned:
+                                _thread_put(cleaned)
+                                emitted_len += len(cleaned)
+                        else:
+                            r = _extract_reasoning(delta_obj, "reasoning_content", "reasoning")
+                            if r:
+                                reasoning_buf.append(r)
                         # chat.completions reports truncation via the
                         # final chunk's `finish_reason == "length"`. Emit
                         # AFTER any content delta on the same chunk so
@@ -331,7 +508,17 @@ class OpenAIBackend(LLMBackend):
                         # truncation tag.
                         finish_reason = getattr(choice, "finish_reason", None)
                         if finish_reason == "length":
+                            tail = stripper.flush()
+                            if tail:
+                                _thread_put(tail)
                             _thread_put(TruncationSignal(reason="length"))
+                    if not saw_content:
+                        tail = stripper.flush()
+                        if tail:
+                            _thread_put(tail)
+                            emitted_len += len(tail)
+                    if emitted_len == 0 and reasoning_buf:
+                        _thread_put("".join(reasoning_buf))
             except Exception as exc:  # surface to consumer
                 if not cancel_event.is_set():
                     _thread_put(exc)

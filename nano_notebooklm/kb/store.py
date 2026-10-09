@@ -98,6 +98,35 @@ def _build_api_embed_fn() -> Callable[[list[str]], np.ndarray]:
         model_name = "text-embedding-3-small"
         logger.info("EMBEDDING_MODE=api: defaulting model to %s", model_name)
 
+    protocol = getattr(config, "EMBEDDING_PROTOCOL", "openai")
+
+    def _tei_embed(batch: list[str]) -> list[list[float]]:
+        # HuggingFace text-embeddings-inference native: POST {base}/embed
+        import urllib.request
+        url = embed_url.rstrip("/") + "/embed"
+        req = urllib.request.Request(
+            url,
+            data=json.dumps({"inputs": batch, "truncate": True}).encode(),
+            headers={"Content-Type": "application/json",
+                     **({"Authorization": "Bearer " + embed_key} if embed_key else {})},
+        )
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            return json.loads(resp.read())
+
+    def _ollama_embed(batch: list[str]) -> list[list[float]]:
+        # Ollama native: POST {base}/api/embed
+        import urllib.request
+        url = embed_url.rstrip("/") + "/api/embed"
+        req = urllib.request.Request(
+            url,
+            data=json.dumps({"model": model_name, "input": batch}).encode(),
+            headers={"Content-Type": "application/json",
+                     **({"Authorization": "Bearer " + embed_key} if embed_key else {})},
+        )
+        with urllib.request.urlopen(req, timeout=300) as resp:
+            d = json.loads(resp.read())
+        return d.get("embeddings") or []
+
     def embed(texts: list[str]) -> np.ndarray:
         if not texts:
             return np.zeros((0, 0), dtype=np.float32)
@@ -106,8 +135,13 @@ def _build_api_embed_fn() -> Callable[[list[str]], np.ndarray]:
         batch_size = 64
         for i in range(0, len(texts), batch_size):
             batch = texts[i : i + batch_size]
-            resp = client.embeddings.create(model=model_name, input=batch)
-            out.extend(d.embedding for d in resp.data)
+            if protocol == "tei":
+                out.extend(_tei_embed(batch))
+            elif protocol == "ollama":
+                out.extend(_ollama_embed(batch))
+            else:
+                resp = client.embeddings.create(model=model_name, input=batch)
+                out.extend(d.embedding for d in resp.data)
         arr = np.asarray(out, dtype=np.float32)
         # L2-normalize so cosine similarity ↔ inner product
         norms = np.linalg.norm(arr, axis=1, keepdims=True)

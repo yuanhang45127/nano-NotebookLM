@@ -177,6 +177,14 @@ DEFAULT_BACKEND = os.getenv("DEFAULT_BACKEND", "openai")
 # to OpenAI). Falls back to the main OPENAI_* settings.
 EMBEDDING_API_KEY = os.getenv("EMBEDDING_API_KEY", "") or OPENAI_API_KEY
 EMBEDDING_API_BASE_URL = os.getenv("EMBEDDING_API_BASE_URL", "") or OPENAI_BASE_URL
+# Wire protocol the EMBEDDING_API_BASE_URL endpoint speaks:
+#   "openai" → POST {base}/embeddings {model, input}  (OpenAI-compatible:
+#              vLLM / Ollama /v1, Xinference, Infinity, TEI ≥1.6 /v1, OneAPI)
+#   "tei"    → POST {base}/embed   {inputs, truncate} (HuggingFace
+#              text-embeddings-inference native — the common format for
+#              self-hosted bge-m3 containers)
+#   "ollama" → POST {base}/api/embed {model, input}   (Ollama native)
+EMBEDDING_PROTOCOL = os.getenv("EMBEDDING_PROTOCOL", "openai").strip().lower()
 
 # ── Embedding ────────────────────────────────────────────────────────
 # - "local" → sentence-transformers (offline, downloads model on first
