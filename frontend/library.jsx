@@ -254,9 +254,9 @@ function Library({
           <div className="spacer"></div>
           <button
             className="icon-btn"
-            title={theme === "dark" ? "Light mode" : "Dark mode"}
+            title={`${theme} → ${({ modern: "dark", dark: "classic", classic: "modern" })[theme] || "modern"}`}
             onClick={onToggleTheme}
-          >{theme === "dark" ? "☀" : "🌙"}</button>
+          >{theme === "dark" ? "📜" : theme === "classic" ? "☀" : "🌙"}</button>
         </div>
       </div>
     </aside>

@@ -100,6 +100,38 @@
   --shadow-3: 0 14px 44px rgba(0, 0, 0, 0.6);
 }
 
+/* classic 纸色主题 — Marginalia 暖纸调色板（原版取舍的风格，opt-in 保留） */
+[data-theme="classic"] {
+  --bg:            oklch(0.96 0.014 75);
+  --surface:       oklch(0.982 0.011 78);
+  --surface-2:     oklch(0.96 0.014 75);
+  --surface-3:     oklch(0.935 0.018 72);
+  --sidebar-bg:    oklch(0.982 0.011 78);
+  --border:        oklch(0.88 0.02 72);
+  --border-strong: oklch(0.76 0.028 65);
+
+  --ink:   oklch(0.22 0.02 50);
+  --ink-2: oklch(0.38 0.022 50);
+  --ink-3: oklch(0.54 0.02 55);
+  --ink-4: oklch(0.68 0.018 60);
+
+  --accent:        oklch(0.47 0.115 158);
+  --accent-strong: oklch(0.36 0.105 160);
+  --accent-soft:   oklch(0.92 0.05 160);
+  --accent-softer: oklch(0.96 0.03 160);
+  --accent-border: oklch(0.84 0.055 160);
+  --accent-grad:   linear-gradient(93deg, oklch(0.44 0.11 158), oklch(0.40 0.10 168));
+
+  --warn:      oklch(0.55 0.118 28);
+  --warn-bg:   oklch(0.93 0.04 32);
+  --warn-border: oklch(0.86 0.06 32);
+
+  --hl-yellow-bg: oklch(0.96 0.08 90);
+
+  --sans: "Source Serif 4", "Inter", "Noto Serif SC", "Songti SC", "SimSun", serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, "PingFang SC", monospace;
+}
+
 /* ── base ─────────────────────────────────────────────────────────────── */
 * { box-sizing: border-box; }
 html, body { height: 100%; }
