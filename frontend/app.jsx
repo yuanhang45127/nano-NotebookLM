@@ -1910,10 +1910,10 @@ function App() {
               <div className="model-select">
                 <button
                   className={"backend-chip mono backend-" + variantFor(backend)}
-                  title={t("topbar.backend_select")}
+                  title={labelFor(backend)}
                   onClick={() => setModelMenuOpen(v => !v)}
                   disabled={streaming || cycle.length === 0}
-                >{labelFor(backend)} <span className="caret">▾</span></button>
+                ><span className="backend-chip-label">{labelFor(backend)}</span><span className="caret">▾</span></button>
                 {modelMenuOpen && (
                   <>
                     <div className="model-menu-backdrop" onClick={() => setModelMenuOpen(false)} />
@@ -1922,6 +1922,7 @@ function App() {
                         <button
                           key={id}
                           className={"model-menu-item" + (backend === id ? " on" : "")}
+                          title={labelFor(id)}
                           onClick={() => { commitBackend(id); setModelMenuOpen(false); }}
                           disabled={streaming}
                         >
