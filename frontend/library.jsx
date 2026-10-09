@@ -188,9 +188,9 @@ function Library({
           onDrop={(e) => { e.preventDefault(); setHot(false); onStartUpload(); }}
           onClick={onStartUpload}
         >
-          <div className="plus">+</div>
-          <div>{t("library.drop")}</div>
-          <div className="hint">pdf · pptx · docx · png · md</div>
+          <span className="plus">＋</span>
+          <span className="dz-text">{t("library.drop")}</span>
+          <span className="hint">pdf · pptx · docx · md</span>
         </div>
 
         {uploading && (
