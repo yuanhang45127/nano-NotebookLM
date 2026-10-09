@@ -404,14 +404,23 @@ function App() {
   // palette — force any persisted "dark"/"auto" back to "paper" so old visitors
   // don't get stranded in a theme they can no longer switch out of.
   const [theme, setTheme] = useState(() => {
-    try { return window.localStorage.getItem("nano-nlm:v1:theme") === "dark" ? "dark" : "paper"; }
-    catch (e) { return "paper"; }
+    // 旧值迁移：v0.2 之前 "paper" 指亮色；v0.2.1 起亮色叫 "modern"，
+    // "paper" 让位给新的 classic 纸色主题
+    try {
+      const v = window.localStorage.getItem("nano-nlm:v1:theme");
+      return (v === "dark" || v === "classic" || v === "modern") ? v : "modern";
+    } catch (e) { return "modern"; }
   });
-  // v0.2 redesign: dark mode is a first-class toggle (topbar moon). Applied
-  // on <html> as data-theme so the CSS token block swaps wholesale.
+  // 主题应用：<html data-theme> 让 CSS token 块整体切换（modern→""）。
   React.useEffect(() => {
-    try { document.documentElement.dataset.theme = theme === "dark" ? "dark" : ""; } catch (e) {}
+    try { document.documentElement.dataset.theme = theme === "modern" ? "" : theme; } catch (e) {}
   }, [theme]);
+  const THEME_CYCLE = { modern: "dark", dark: "classic", classic: "modern" };
+  const THEME_GLYPH = { modern: "🌙", dark: "📜", classic: "☀" };
+  const THEME_NAME = { modern: "现代简约", dark: "暗色", classic: "经典纸色" };
+  function cycleTheme() {
+    commitTheme(THEME_CYCLE[theme] || "modern");
+  }
   const [density, setDensity] = useState(() => {
     try { return window.localStorage.getItem("nano-nlm:v1:density") || APPEARANCE_DEFAULTS.density; }
     catch (e) { return APPEARANCE_DEFAULTS.density; }
@@ -2059,9 +2068,9 @@ function App() {
           >💬</button>
           <button
             className="icon-btn"
-            title={theme === "dark" ? "Light mode" : "Dark mode"}
-            onClick={() => commitTheme(theme === "dark" ? "paper" : "dark")}
-          >{theme === "dark" ? "☀" : "🌙"}</button>
+            title={`主题：${THEME_NAME[theme]} → ${THEME_NAME[THEME_CYCLE[theme]]}`}
+            onClick={cycleTheme}
+          >{THEME_GLYPH[theme]}</button>
           <button
             className={"icon-btn" + (mode === "settings" ? " active" : "")}
             title="Settings (helper name, language, backend, cache)"
@@ -2092,7 +2101,7 @@ function App() {
           setMode("settings");
         }}
         theme={theme}
-        onToggleTheme={() => commitTheme(theme === "dark" ? "paper" : "dark")}
+        onToggleTheme={cycleTheme}
         activeId={activeId}
         onPick={setActiveId}
         onToggle={(id) => setSources(ss => ss.map(s => s.id === id ? { ...s, checked: !s.checked } : s))}
