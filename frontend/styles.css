@@ -358,22 +358,19 @@ input, textarea, select { font-family: inherit; color: var(--ink); }
 .lib-bulk-btn:hover:not(:disabled) { border-color: var(--border-strong); color: var(--ink); }
 .lib-bulk-btn:disabled { opacity: .45; cursor: default; }
 
-.dropzone {
-  border: 1.5px dashed var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  padding: 9px 10px;
-  display: flex; align-items: center; justify-content: center;
-  flex-wrap: wrap; gap: 4px 8px;
-  text-align: center;
-  color: var(--ink-3); font-size: 12px;
-  cursor: pointer;
-  transition: border-color .15s, background .15s;
+.upload-btn {
+  appearance: none; cursor: pointer;
+  width: 100%; height: 32px;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--ink-2);
+  font-size: 12.5px; font-weight: 500;
+  transition: all .15s;
 }
-.dropzone:hover, .dropzone.hot { border-color: var(--accent); background: var(--accent-softer); color: var(--accent); }
-.dropzone .plus { font-size: 15px; font-weight: 500; color: var(--accent); line-height: 1; }
-.dropzone .dz-text { font-weight: 500; }
-.dropzone .hint { font-size: 10.5px; color: var(--ink-4); }
+.upload-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-softer); }
+.upload-btn.drag-hot { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.upload-btn .plus { font-size: 14px; font-weight: 500; line-height: 1; }
+.library.drag-over { outline: 2px dashed var(--accent); outline-offset: -2px; }
 
 .uploading { padding: 8px 2px; }
 .uploading .lbl { font-size: 11px; color: var(--ink-3); }

@@ -36,7 +36,6 @@ function Library({
   const collectionsList = Array.isArray(collections)
     ? collections
     : (typeof SAMPLE_COLLECTIONS !== "undefined" ? SAMPLE_COLLECTIONS : []);
-  const [hot, setHot] = useState(false);
   // Anchor for shift-click range select — id of the last checkbox the user
   // clicked. Cleared when the source list changes underneath us (e.g.
   // course switch) since the previous id would no longer make sense.
@@ -125,8 +124,15 @@ function Library({
     lastToggledRef.current = id;
   }
 
+  const [dragOver, setDragOver] = useState(false);
   return (
-    <aside className="library" data-screen-label="Library">
+    <aside
+      className={"library" + (dragOver ? " drag-over" : "")}
+      data-screen-label="Library"
+      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOver(false); }}
+      onDrop={(e) => { e.preventDefault(); setDragOver(false); onStartUpload(); }}
+    >
       <div className="lib-brand">
         <span className="logo-tile">N</span>
         <span className="mark">nano-NotebookLM</span>
@@ -181,17 +187,13 @@ function Library({
           </div>
         )}
 
-        <div
-          className={"dropzone" + (hot ? " hot" : "")}
-          onDragOver={(e) => { e.preventDefault(); setHot(true); }}
-          onDragLeave={() => setHot(false)}
-          onDrop={(e) => { e.preventDefault(); setHot(false); onStartUpload(); }}
+        <button
+          className={"upload-btn" + (dragOver ? " drag-hot" : "")}
           onClick={onStartUpload}
+          title={t("library.drop")}
         >
-          <span className="plus">＋</span>
-          <span className="dz-text">{t("library.drop")}</span>
-          <span className="hint">pdf · pptx · docx · md</span>
-        </div>
+          <span className="plus">＋</span>{t("scratch.mode_upload")}
+        </button>
 
         {uploading && (
           <div className="uploading">
