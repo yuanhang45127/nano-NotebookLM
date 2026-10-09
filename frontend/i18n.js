@@ -748,6 +748,8 @@
     "scratch.course_name_label":      { zh: "课程名称（保存后可继续用图谱/备考等功能）", en: "Course name (unlocks KG / exam prep etc.)" },
     "scratch.save_course":            { zh: "保存为新课程",   en: "Save as new course" },
     "scratch.save_hint":              { zh: "保存后笔记将作为课程资料入库，自动建立索引与知识图谱", en: "The note is ingested like an uploaded document — index + knowledge graph build automatically" },
+    "scratch.draft_restored":         { zh: "已恢复上次未保存的草稿（生成内容不会丢失）", en: "Recovered your unsaved draft from last time" },
+    "scratch.discard":                { zh: "放弃草稿",       en: "Discard draft" },
     "scratch.error_stream":           { zh: "生成失败，请重试。", en: "Generation failed — please retry." },
     "topbar.all_courses":             { zh: "🌐 全部课程（{n} chunks）", en: "🌐 All Courses ({n} chunks)" },
     "topbar.course_option":           { zh: "{flag} {name}（{n} chunks）", en: "{flag} {name} ({n} chunks)" },

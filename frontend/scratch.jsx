@@ -67,8 +67,42 @@ function ScratchPanel({ userLang = null, backend = null, onPicked, onCancel }) {
   const [error, setError] = useStateS("");
   const [terms, setTerms] = useStateS([]);
   const [explain, setExplain] = useStateS(null);    // {term, text, loading}
+  const [restored, setRestored] = useStateS(false); // draft recovered banner
   const previewRef = useRefS(null);
   const bodyReqRef = useRefS(null);
+
+  // ── draft persistence ──
+  // The wizard's outline/note live only in React state while generating;
+  // a tab close / reload mid-flow used to lose minutes of LLM output (a
+  // real loss: the "LLM for Law" note never reached the server). Mirror
+  // the whole draft into localStorage and offer recovery on mount.
+  const DRAFT_KEY = "nano-nlm:v1:scratch-draft";
+  const DRAFT_FIELDS = { topic, depth, audience, outline, noteText, terms };
+  useEffectS(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (d && (d.noteText || d.outline)) {
+        setTopic(d.topic || "");
+        setDepth(d.depth || "standard");
+        setAudience(d.audience || "");
+        setOutline(d.outline || "");
+        setNoteText(d.noteText || "");
+        setTerms(Array.isArray(d.terms) ? d.terms : []);
+        if (d.noteText) setStep("note"); else if (d.outline) setStep("outline");
+        setRestored(true);
+      }
+    } catch (e) { /* corrupted draft — ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffectS(() => {
+    try {
+      if (topic || outline || noteText) {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(DRAFT_FIELDS));
+      }
+    } catch (e) { /* quota — best effort */ }
+  });
 
   const baseBody = () => ({
     topic: topic.trim(),
@@ -152,6 +186,7 @@ function ScratchPanel({ userLang = null, backend = null, onPicked, onCancel }) {
 
   function saveCourse() {
     if (!noteText.trim()) return;
+    try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
     const name = (courseName() || topic).trim();
     const safe = name.replace(/[\\/:*?"<>|]/g, "-").slice(0, 80);
     const file = new File([noteText], safe + ".md", { type: "text/markdown" });
@@ -161,6 +196,12 @@ function ScratchPanel({ userLang = null, backend = null, onPicked, onCancel }) {
 
   return (
     <div className="scratch-panel">
+      {restored && (
+        <div className="scratch-restored">
+          {t("scratch.draft_restored")}
+          <button className="scratch-restored-x" onClick={() => setRestored(false)}>×</button>
+        </div>
+      )}
       {/* ── step 1: topic ── */}
       {step === "topic" && (
         <div className="scratch-step">
@@ -266,7 +307,9 @@ function ScratchPanel({ userLang = null, backend = null, onPicked, onCancel }) {
             placeholder={t("scratch.topic_placeholder")}
           />
           <div className="scratch-actions">
-            <button className="btn ghost" onClick={onCancel}>{t("common.cancel")}</button>
+            <button className="btn ghost" onClick={() => { try { localStorage.removeItem(DRAFT_KEY); } catch (e) {} onCancel(); }}>
+              {t("scratch.discard")}
+            </button>
             <button
               className="btn primary"
               onClick={saveCourse}

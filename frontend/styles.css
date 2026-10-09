@@ -1859,3 +1859,16 @@ mark.hl.hl-purple { background: #e0d1f8; }
   background: var(--surface-3); border-radius: 5px; padding: 1px 5px;
 }
 .scratch-explain-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
+
+.scratch-restored {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: var(--ok-bg); color: var(--ok);
+  border: 1px solid var(--ok-border);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px; margin-bottom: 12px;
+  font-size: 12px; font-weight: 500;
+}
+.scratch-restored-x {
+  appearance: none; border: 0; background: transparent;
+  color: var(--ok); cursor: pointer; font-size: 14px;
+}
