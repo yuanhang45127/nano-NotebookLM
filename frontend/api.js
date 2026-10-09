@@ -148,6 +148,11 @@ const API = {
     return _stream("/notes/full-course/stream", body, onEvent);
   },
 
+  examPrepConceptQuiz: (courseId, { concept, definition, size }, userLang) => _post("/exam-prep/concept/quiz", {
+    course_id: courseId, concept, definition: definition || "", size: size || 3,
+    user_lang: userLang,
+  }),
+
   // ── Scratch notes (从零生成知识笔记) ──
   // Event vocabulary matches /api/notes/full-course/stream:
   //   {type:"chunk", chunk, partial} … {type:"done", content} | {type:"error", …}

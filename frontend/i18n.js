@@ -716,6 +716,9 @@
     "manage.sys_storage_val":         { zh: "仅保存在本机浏览器", en: "Browser-local only" },
     "manage.sessions":                { zh: "最近学习记录",  en: "Recent sessions" },
     "topbar.backend_select":          { zh: "选择模型",       en: "Select model" },
+    "exam.concept.generating":        { zh: "正在为「{name}」出题…", en: "Generating questions for \"{name}\"…" },
+    "exam.concept.none":              { zh: "该概念暂未能生成题目，请稍后重试。", en: "Couldn't generate questions for this concept — please retry." },
+    "exam.quiz.concept_badge":        { zh: "概念练习", en: "Concept practice" },
     "assistant.footnote":             { zh: "回答基于已索引来源生成，请留意核对", en: "Answers are grounded in your indexed sources — please verify" },
 
     // ── scratch notes wizard (从零生成知识笔记) ──

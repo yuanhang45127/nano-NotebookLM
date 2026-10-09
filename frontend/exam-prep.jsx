@@ -13,7 +13,9 @@
 
 const { useState: useEP, useEffect: useEPEffect, useCallback: useEPCallback, useRef: useEPRef } = React;
 
-function ExamPrep({ activeCourse, userLang }) {
+function ExamPrep({ activeCourse, userLang, conceptRequest }) {
+  // KG 节点「按概念练习」入口：conceptRequest = { name, definition, nonce }
+  const conceptNonce = conceptRequest?.nonce;
   const t = (k, vars) => window.I18N.t(k, userLang || "en", vars);
   const [view, setView] = useEP("topics"); // topics | quiz | result
   const [loading, setLoading] = useEP(false);
@@ -26,6 +28,7 @@ function ExamPrep({ activeCourse, userLang }) {
   const [quizScope, setQuizScope] = useEP(null); // null = all, or topic_id
   const [answers, setAnswers] = useEP({}); // qid -> user_answer
   const [graded, setGraded] = useEP(null);  // result payload from submit
+  const [conceptLabel, setConceptLabel] = useEP(null);
 
   // Live elapsed-seconds counter while `loading` is true. Without this the
   // user sees a silent "Working…" during the 5-45 s variant-gen window and
@@ -63,6 +66,37 @@ function ExamPrep({ activeCourse, userLang }) {
     refresh();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCourse]);
+
+  // 概念练习：KG 节点按钮触发，按概念出题（存量匹配优先 + 按需生成）
+  useEPEffect(() => {
+    if (!conceptRequest || !activeCourse) return;
+    const myActive = activeCourse;
+    (async () => {
+      startBusy(t("exam.concept.generating", { name: conceptRequest.name }));
+      setError(""); setAnswers({}); setGraded(null);
+      try {
+        const data = await API.examPrepConceptQuiz(myActive, {
+          concept: conceptRequest.name,
+          definition: conceptRequest.definition || "",
+          size: 3,
+        }, userLang);
+        if (myActive !== activeCourse) return;
+        const qs = data.questions || [];
+        if (!qs.length) { setError(t("exam.concept.none")); return; }
+        setQuizQuestions(qs);
+        setQuizScope(null);
+        setConceptLabel(data.concept || conceptRequest.name);
+        setBankView(data.view || bankView);
+        setView("quiz");
+      } catch (e) {
+        if (myActive !== activeCourse) return;
+        setError(e.message || t("exam.error.failed_start"));
+      } finally {
+        if (myActive === activeCourse) stopBusy();
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conceptNonce]);
 
   // fix-all v1 M10: snapshot the active course at the moment a request
   // fires; if it changes mid-flight (user clicked a different course),
@@ -114,7 +148,7 @@ function ExamPrep({ activeCourse, userLang }) {
   async function startQuiz(topicId = null) {
     if (busy()) return;
     const myActive = activeCourse;
-    startBusy(t("exam.busy.sampling")); setError(""); setAnswers({}); setGraded(null);
+    startBusy(t("exam.busy.sampling")); setError(""); setAnswers({}); setGraded(null); setConceptLabel(null);
     try {
       const data = await API.examPrepNextQuiz(myActive, {
         size: 8,
@@ -175,7 +209,7 @@ function ExamPrep({ activeCourse, userLang }) {
       await API.examPrepReset(activeCourse);
       setBankView(null);
       setView("topics");
-      setQuizQuestions([]); setAnswers({}); setGraded(null);
+      setQuizQuestions([]); setAnswers({}); setGraded(null); setConceptLabel(null);
     } catch (e) {
       setError(e.message || t("exam.error.failed_reset"));
     }
@@ -279,6 +313,7 @@ function ExamPrep({ activeCourse, userLang }) {
           t={t}
           questions={quizQuestions}
           scope={quizScope}
+          conceptLabel={conceptLabel}
           answers={answers}
           onAnswer={(qid, ans) => setAnswers(a => ({ ...a, [qid]: ans }))}
           onSubmit={handleSubmit}
@@ -369,7 +404,7 @@ function ExamPrepTopics({ t, bankView, onStartMixed, onStartTopic }) {
   );
 }
 
-function ExamPrepQuiz({ t, questions, scope, answers, onAnswer, onSubmit, onCancel, loading }) {
+function ExamPrepQuiz({ t, questions, scope, answers, onAnswer, onSubmit, onCancel, loading, conceptLabel }) {
   const answered = Object.keys(answers).filter(k => answers[k] != null && answers[k] !== "").length;
   return (
     <div className="exam-prep-quiz">
@@ -377,6 +412,7 @@ function ExamPrepQuiz({ t, questions, scope, answers, onAnswer, onSubmit, onCanc
         <div>
           <strong>{t("exam.quiz.title", { n: questions.length })}</strong>
           {scope && <span className="mono">{t("exam.quiz.scoped_topic")}</span>}
+          {conceptLabel && <span className="concept-badge">{t("exam.quiz.concept_badge")} · {conceptLabel}</span>}
         </div>
         <div className="exam-prep-quiz-progress">
           <span className="mono">{answered} / {questions.length}</span>
