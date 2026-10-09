@@ -393,6 +393,7 @@ input, textarea, select { font-family: inherit; color: var(--ink); }
 .upload-btn {
   appearance: none; cursor: pointer;
   width: 100%; height: 32px;
+  margin-bottom: 6px;  /* 与 .lib-list 的条目间距一致 */
   display: flex; align-items: center; justify-content: center; gap: 6px;
   border: 1px solid var(--border); border-radius: var(--radius-sm);
   background: var(--surface); color: var(--ink-2);
