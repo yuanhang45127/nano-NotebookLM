@@ -715,6 +715,7 @@
     "manage.sys_storage":             { zh: "数据存储",      en: "Data storage" },
     "manage.sys_storage_val":         { zh: "仅保存在本机浏览器", en: "Browser-local only" },
     "manage.sessions":                { zh: "最近学习记录",  en: "Recent sessions" },
+    "topbar.backend_select":          { zh: "选择模型",       en: "Select model" },
     "assistant.footnote":             { zh: "回答基于已索引来源生成，请留意核对", en: "Answers are grounded in your indexed sources — please verify" },
 
     // ── scratch notes wizard (从零生成知识笔记) ──
