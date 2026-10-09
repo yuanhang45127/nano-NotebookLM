@@ -52,6 +52,7 @@ function Library({
   // list changes — cheap enough, and covers the common moments where
   // cache size moves (generation writes, course switch cleanup).
   const [bytes, setBytes] = useState(0);
+  const [courseOpen, setCourseOpen] = useState(false);
   useEffect(() => {
     try {
       let n = 0;
@@ -140,22 +141,57 @@ function Library({
       </div>
 
       <div className="lib-course">
-        <div className="lib-course-select">
-          <span className="globe">🌐</span>
-          <select
-            value={activeCourse || ""}
-            onChange={e => onCourseChange && onCourseChange(e.target.value)}
+        <div className="lib-course-wrap">
+          <button
+            type="button"
+            className="lib-course-select"
+            onClick={() => setCourseOpen(v => !v)}
             aria-label={t("library.all_courses")}
           >
-            <option value="">
-              {t("library.all_courses")}{typeof totalChunks === "number" && totalChunks > 0 ? ` · ${totalChunks} chunks` : ""}
-            </option>
-            {(courses || []).map(c => (
-              <option key={c.id} value={c.id}>
-                {c.name}{typeof c.chunks === "number" ? ` · ${c.chunks} chunks` : ""}
-              </option>
-            ))}
-          </select>
+            <span className="globe">🌐</span>
+            <span className="lib-course-name">
+              {activeCourse
+                ? ((courses || []).find(c => c.id === activeCourse) || {}).name || activeCourse
+                : t("library.all_courses")}
+            </span>
+            <span className="lib-course-chunks mono">
+              {(() => {
+                if (activeCourse) {
+                  const c = (courses || []).find(x => x.id === activeCourse);
+                  return typeof c?.chunks === "number" ? `${c.chunks} chunks` : "";
+                }
+                return typeof totalChunks === "number" && totalChunks > 0 ? `· ${totalChunks} chunks` : "";
+              })()}
+            </span>
+            <span className="caret">▾</span>
+          </button>
+          {courseOpen && (
+            <>
+              <div className="model-menu-backdrop" onClick={() => setCourseOpen(false)} />
+              <div className="lib-course-menu" role="listbox">
+                <button
+                  type="button"
+                  className={"model-menu-item" + (!activeCourse ? " on" : "")}
+                  onClick={() => { onCourseChange && onCourseChange(""); setCourseOpen(false); }}
+                >
+                  <span className="mm-check">{!activeCourse ? "✓" : ""}</span>
+                  <span className="mm-label">🌐 {t("library.all_courses")}</span>
+                </button>
+                {(courses || []).map(c => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className={"model-menu-item" + (c.id === activeCourse ? " on" : "")}
+                    onClick={() => { onCourseChange && onCourseChange(c.id); setCourseOpen(false); }}
+                  >
+                    <span className="mm-check">{c.id === activeCourse ? "✓" : ""}</span>
+                    <span className="mm-label">{c.name}</span>
+                    <span className="lib-course-menu-n mono">{typeof c.chunks === "number" ? `${c.chunks} chunks` : ""}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
