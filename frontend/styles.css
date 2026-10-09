@@ -1790,3 +1790,11 @@ mark.hl.hl-purple { background: #e0d1f8; }
   overflow-wrap: anywhere; word-break: break-word; line-height: 1.45;
   white-space: normal;
 }
+
+.concept-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-left: 10px;
+  background: var(--accent-soft); color: var(--accent);
+  border-radius: 999px; padding: 3px 10px;
+  font-size: 11px; font-weight: 600;
+}

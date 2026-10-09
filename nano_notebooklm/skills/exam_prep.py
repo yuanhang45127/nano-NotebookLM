@@ -346,7 +346,7 @@ def check_answer(q: dict, user_answer: Any) -> bool:
 class ExamPrepSkill(Skill):
     """Closed-loop exam prep state machine. Dispatched via the `action` param.
 
-    Actions: plan | seed | next_quiz | submit | view | reset.
+    Actions: plan | seed | next_quiz | concept_quiz | submit | view | reset.
     """
 
     name = "exam_prep"
@@ -375,6 +375,8 @@ class ExamPrepSkill(Skill):
                 return await self.seed_questions(course_id, params, user_lang)
             if action == "next_quiz":
                 return await self.next_quiz(course_id, params, user_lang)
+            if action == "concept_quiz":
+                return await self.concept_quiz(course_id, params, user_lang)
             if action == "submit":
                 return await self.submit_answers(course_id, params, user_lang)
             if action == "view":
@@ -689,6 +691,7 @@ class ExamPrepSkill(Skill):
         kinds: tuple[str, ...],
         variant_of: str | None,
         user_lang: str | None = None,
+        focus: str | None = None,
     ) -> int:
         """Append `count` questions per kind to topic. Returns total added."""
         if count <= 0 or not kinds:
@@ -729,6 +732,11 @@ class ExamPrepSkill(Skill):
             source_text=source_text,
             avoid_block=avoid_block,
         )
+        if focus:
+            prompt += (
+                f"\n\nFOCUS: every question must be specifically about «{focus}». "
+                "Stay tightly on this concept — do not drift to other parts of the topic."
+            )
         prompt += prompts.USER_LANG_REMINDER(user_lang)
         system = prompts.EXAM_PREP_SYSTEM
         binding = prompts.USER_LANG_BINDING(user_lang)
@@ -802,6 +810,114 @@ class ExamPrepSkill(Skill):
             existing_sigs.add(sig)
             added += 1
         return added
+
+    # ── KG node-level concept practice (2026-10, #20 route A) ──
+
+    async def concept_quiz(
+        self, course_id: str, params: dict, user_lang: str | None,
+    ) -> SkillResult:
+        """Sample/generate a small quiz focused on ONE KG concept.
+
+        Route A from the #20 discussion: reuse the existing bank + mastery
+        machinery. Existing questions match by concept substring (prompt /
+        answer / explanation / concepts / options); shortfalls are filled by
+        on-demand generation with a FOCUS prompt, tagged with the concept
+        and appended to the closest topic bucket so grading, variants and
+        mastery all keep working unchanged.
+        """
+        async with _lock_for(course_id):
+            return await self._concept_quiz_locked(course_id, params, user_lang)
+
+    async def _concept_quiz_locked(
+        self, course_id: str, params: dict, user_lang: str | None,
+    ) -> SkillResult:
+        concept = str(params.get("concept") or "").strip()
+        definition = str(params.get("definition") or "")[:600]
+        try:
+            size = max(1, min(10, int(params.get("size", 3))))
+        except (TypeError, ValueError):
+            size = 3
+        if not concept:
+            return SkillResult(success=False, error="concept required")
+
+        bank = load_bank(course_id)
+        label = concept.lower()
+
+        def _q_matches(q: dict) -> bool:
+            options = q.get("options") if isinstance(q.get("options"), list) else []
+            hay = " ".join([
+                q.get("prompt") or "", q.get("answer") or "",
+                q.get("explanation") or "",
+                " ".join(str(c) for c in (q.get("concepts") or [])),
+                " ".join(str(o) for o in options),
+            ]).lower()
+            return label in hay
+
+        # 1. reuse existing matching questions (unmastered first)
+        live: list[tuple[dict, dict]] = []
+        for t in bank["topics"]:
+            if t.get("archived_topic"):
+                continue
+            for q in t.get("questions", []):
+                if q.get("archived"):
+                    continue
+                if _q_matches(q):
+                    live.append((t, q))
+        live.sort(key=lambda tq: (
+            1 if question_mastered(tq[1]) else 0,
+            -len(tq[1].get("history") or []),
+        ))
+        picked = [
+            {**q, "topic_id": t["id"], "topic_name": t["name"]}
+            for t, q in live[:size]
+        ]
+
+        # 2. generate the shortfall into the closest topic bucket
+        generated = 0
+        if len(picked) < size:
+            focus = concept + (f"（{definition}）" if definition else "")
+            target = None
+            for t in bank["topics"]:
+                if not t.get("archived_topic") and label in t.get("name", "").lower():
+                    target = t
+                    break
+            if target is None:
+                live_topics = [t for t in bank["topics"] if not t.get("archived_topic")]
+                if live_topics:
+                    target = max(live_topics, key=lambda t: len(t.get("questions", [])))
+            if target is None:
+                # empty bank: create a concept topic on the spot so KG
+                # practice works even before any plan_topics run
+                target = {
+                    "id": _stable_topic_id(concept), "name": concept,
+                    "weight": 0.5, "source_chunks": [],
+                    "questions": [], "created_at": _now_iso(),
+                }
+                bank["topics"].append(target)
+            known_ids = {q["id"] for q in target.get("questions", [])}
+            generated = await self._generate_questions(
+                course_id, target, count=size - len(picked),
+                kinds=("multiple_choice", "short_answer"), variant_of=None,
+                user_lang=user_lang, focus=focus,
+            )
+            for q in target.get("questions", []):
+                if q["id"] in known_ids:
+                    continue  # pre-existing questions
+                q.setdefault("concepts", [])
+                if concept not in q["concepts"]:
+                    q["concepts"].append(concept)
+                if len(picked) < size and not any(p["id"] == q["id"] for p in picked):
+                    picked.append({**q, "topic_id": target["id"], "topic_name": target["name"]})
+            if generated:
+                save_bank(course_id, bank)
+
+        return SkillResult(success=True, data={
+            "questions": picked,
+            "concept": concept,
+            "matched_existing": len(live),
+            "generated": generated,
+            "view": self._compute_view(bank),
+        })
 
     # ── Phase 3a: sample next quiz ─────────────────────────────────
 

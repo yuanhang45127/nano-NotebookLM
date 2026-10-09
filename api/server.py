@@ -901,6 +901,15 @@ class ExamPrepSeedRequest(BaseModel):
         return v
 
 
+class ExamPrepConceptQuizRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    course_id: ReqCourseId
+    concept: str = Field(..., min_length=1, max_length=120, description="KG node label to practice.")
+    definition: str = Field("", max_length=600, description="Optional node definition to focus generation.")
+    size: int = Field(3, ge=1, le=10, description="Questions to return (existing matches first, shortfall generated).")
+    user_lang: Literal["zh", "en"] | None = None
+
+
 class ExamPrepNextQuizRequest(BaseModel):
     model_config = {"extra": "forbid"}
     course_id: ReqCourseId
@@ -1627,6 +1636,22 @@ async def exam_prep_next_quiz(req: ExamPrepNextQuizRequest):
     })
     if not result.success:
         _raise_exam_prep_error(result, "exam_prep_quiz_failed")
+    return result.data
+
+
+@app.post("/api/exam-prep/concept/quiz", tags=["exam-prep"],
+          summary="Sample/generate a small quiz focused on one KG concept")
+async def exam_prep_concept_quiz(req: ExamPrepConceptQuizRequest):
+    result = await orchestrator.run_skill("exam_prep", {
+        "action": "concept_quiz",
+        "course_id": req.course_id,
+        "concept": req.concept,
+        "definition": req.definition,
+        "size": req.size,
+        "user_lang": req.user_lang,
+    })
+    if not result.success:
+        _raise_exam_prep_error(result, "exam_prep_concept_quiz_failed")
     return result.data
 
 

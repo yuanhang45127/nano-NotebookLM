@@ -425,6 +425,14 @@ function App() {
     } catch (e) { return 428; }
   });
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
+  // KG 节点级「按概念练习」（issue #20 route A）：图谱弹层按钮 → 考试备考页
+  // 按概念出题。nonce 让同一节点重复点击也能再次触发。
+  const [conceptPractice, setConceptPractice] = useState(null);
+  function startConceptPractice(nodeLabel) {
+    setProcessing(p => (p && (p.done || p.errorStage)) ? null : p);
+    setConceptPractice({ name: nodeLabel, definition: "", nonce: Date.now() });
+    setMode("exam-prep");
+  }
 
   function toggleAssistant(open) {
     setAsstOpen(open);
@@ -2140,10 +2148,10 @@ function App() {
                   highlightedId={highlightedNode}
                   onNodeClick={setHighlightedNode}
                   onSourceClick={handleMindmapSource}
-                  /* onPractice unwired 2026-05-12 — Quiz tab hidden; KG's
-                     "Practice 3" affordance hides via mindmap.jsx's
-                     `onPractice && (...)` guard until Exam Prep wires
-                     up a per-concept practice CTA. */
+                  /* 2026-10: KG 按概念练习接线（#20 route A）——节点弹层
+                     「练习 3 题」→ 跳考试备考页按概念出题，错题自动进
+                     既有变体/掌握度闭环。 */
+                  onPractice={(label) => startConceptPractice(label)}
                   onDataChange={(data) => {
                     setRealMindmap(data);
                     if (activeCourse && data) saveCached(activeCourse, "mindmap", data);
@@ -2210,7 +2218,11 @@ function App() {
             />
           )}
           {effectiveMode === "exam-prep" && (
-            <ExamPrep activeCourse={activeCourse} userLang={userLang} />
+            <ExamPrep
+              activeCourse={activeCourse}
+              userLang={userLang}
+              conceptRequest={conceptPractice}
+            />
           )}
           {effectiveMode === "skills" && (
             <SkillsDashboard

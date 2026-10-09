@@ -148,6 +148,10 @@ const API = {
     return _stream("/notes/full-course/stream", body, onEvent);
   },
 
+  examPrepConceptQuiz: (courseId, { concept, definition, size }, userLang) => _post("/exam-prep/concept/quiz", {
+    course_id: courseId, concept, definition: definition || "", size: size || 3,
+    user_lang: userLang,
+  }),
   async generateQuiz(courseId, topic = null, numQuestions = 6, difficulty = "medium", { userLang = null } = {}) {
     const body = {
       course_id: courseId, topic, num_questions: numQuestions, difficulty,
