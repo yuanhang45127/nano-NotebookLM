@@ -1752,3 +1752,31 @@ mark.hl.hl-purple { background: #e0d1f8; }
   .doc-chunk { margin: 0 -4px 4px; padding: 6px 6px; }
   .page-footer { flex-direction: column; gap: 4px; }
 }
+
+/* ── model dropdown (topbar) ──────────────────────────────────────────── */
+.model-select { position: relative; }
+.backend-chip .caret { font-size: 9px; margin-left: 3px; opacity: .7; }
+.model-menu-backdrop {
+  position: fixed; inset: 0; z-index: 45;
+  background: transparent; border: 0; padding: 0; cursor: default;
+}
+.model-menu {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 46;
+  min-width: 290px; max-height: 440px; overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-2);
+  padding: 6px;
+}
+.model-menu-item {
+  appearance: none; border: 0; cursor: pointer;
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 8px 10px; border-radius: 8px;
+  background: transparent; color: var(--ink);
+  font-size: 12.5px; font-family: var(--mono); text-align: left;
+}
+.model-menu-item:hover { background: var(--surface-2); }
+.model-menu-item.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.model-menu-item .mm-check { width: 14px; flex: none; color: var(--accent); }
+.model-menu-item .mm-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
